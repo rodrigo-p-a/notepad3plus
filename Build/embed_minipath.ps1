@@ -40,20 +40,21 @@ public static class ResUpd {
 $RT_RCDATA = [IntPtr]10
 $LANG_NEUTRAL = [uint16]0
 
-# Files to embed as RCDATA: minipath.exe + the Portuguese language packs.
-# The single-exe distribution carries no lng\ folder, so we bundle pt-BR/pt-PT
-# (the fork's target locales). The installer extracts them next to the installed
-# exe (see _ProvisionLanguagePacks in Dialogs.c); other locales fall back to the
-# built-in English silently.
+# Files to embed as RCDATA: minipath.exe + the ENTIRE lng\ language tree (all
+# locales), so the single-exe distribution is self-contained. The installer
+# extracts them next to the installed exe (see _ProvisionLanguagePacks in
+# Dialogs.c), reconstructing the relative path from the resource name. Resource
+# name = the file's path relative to the build output dir (e.g.
+# "lng\pt-BR\np3lng.dll.mui"); the runtime filters names starting with "lng\".
 $lng = Join-Path $outDir "lng"
-$embeds = [ordered]@{
-    "MINIPATH"      = $mp
-    "LNGB_NP3"      = (Join-Path $lng "np3lng.dll")
-    "LNGB_MP"       = (Join-Path $lng "mplng.dll")
-    "LNG_NP3_PT_BR" = (Join-Path $lng "pt-BR\np3lng.dll.mui")
-    "LNG_MP_PT_BR"  = (Join-Path $lng "pt-BR\mplng.dll.mui")
-    "LNG_NP3_PT_PT" = (Join-Path $lng "pt-PT\np3lng.dll.mui")
-    "LNG_MP_PT_PT"  = (Join-Path $lng "pt-PT\mplng.dll.mui")
+$embeds = [ordered]@{ "MINIPATH" = $mp }
+
+# the two stub DLLs at the lng root + every <locale>\*.dll.mui (skip build obj\)
+$lngFiles  = @(Get-ChildItem $lng -File | Where-Object { $_.Name -in @("np3lng.dll", "mplng.dll") })
+$lngFiles += @(Get-ChildItem $lng -Recurse -File -Filter *.dll.mui | Where-Object { $_.FullName -notmatch "\\obj\\" })
+foreach ($f in $lngFiles) {
+    $rel = $f.FullName.Substring($outDir.Length).TrimStart('\')   # e.g. lng\pt-BR\np3lng.dll.mui
+    $embeds[$rel] = $f.FullName
 }
 
 $h = [ResUpd]::BeginUpdateResource($np3, $false)   # keep existing resources (icon, manifest, version)
@@ -73,7 +74,6 @@ foreach ($name in $embeds.Keys) {
         throw "UpdateResource ($name) falhou (err $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))"
     }
     $total += $bytes.Length
-    Write-Host ("  + {0,-14} {1,10:N0} bytes  <- {2}" -f $name, $bytes.Length, $path)
 }
 if (-not [ResUpd]::EndUpdateResource($h, $false)) {
     throw "EndUpdateResource falhou (err $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))"

@@ -6,6 +6,20 @@ Cada alteração feita ao longo do tempo é registrada aqui.
 
 ## [Não lançado]
 
+### 2026-06-25 (todos os idiomas embarcados)
+
+#### Alterado
+- **Todos os idiomas embarcados no exe:** em vez de só pt-BR/pt-PT, o
+  executável único agora embarca a **árvore `lng\` completa (26 locais)** como
+  recursos RCDATA, com o nome do recurso = caminho relativo (ex.:
+  `lng\fr-FR\np3lng.dll.mui`). O `embed_minipath.ps1` enumera e embarca tudo;
+  na instalação, `_ProvisionLanguagePacks` percorre os recursos via
+  `EnumResourceNames` e extrai cada um para `<pasta>\lng\...`. Assim qualquer
+  usuário, em qualquer idioma suportado, vê a interface no seu idioma após
+  instalar — sem passos extras. O exe passou a ~18 MB (ainda minúsculo perto dos
+  ~350 MB do VS Code). Verificado: instalado abre em português (`Sem Título`) e,
+  forçando `fr-FR`, em francês (`Sans titre`).
+
 ### 2026-06-25 (idioma após instalar)
 
 #### Corrigido

@@ -5211,39 +5211,38 @@ static bool _ExtractResourceToFile(LPCWSTR resName, const HPATHL hDestFile)
 //=============================================================================
 //
 //  _ProvisionLanguagePacks() - the single-exe distribution carries no lng\
-//  folder, so the bundled Portuguese packs (pt-BR/pt-PT) are embedded as RCDATA.
-//  Extract them into <appDir>\lng so the installed copy shows the native UI
-//  instead of warning that the preferred language is not available. Other
-//  locales fall back to the built-in English silently.
+//  folder, so the WHOLE language tree (all locales) is embedded as RCDATA, each
+//  resource named by its path relative to the app dir (e.g.
+//  "lng\pt-BR\np3lng.dll.mui"; see embed_minipath.ps1). Extract every such
+//  resource into <appDir>\<name> so the installed copy shows the native UI for
+//  any language. A missing/absent tree falls back to the built-in English.
 //
+static BOOL CALLBACK _ProvisionResProc(HMODULE hModule, LPCWSTR lpType, LPWSTR lpName, LONG_PTR lParam)
+{
+    UNREFERENCED_PARAMETER(hModule);
+    UNREFERENCED_PARAMETER(lpType);
+    const HPATHL hAppDir = (const HPATHL)lParam;
+    if (IS_INTRESOURCE(lpName)) {
+        return TRUE; // integer-named resource (e.g. icons) - not ours
+    }
+    // only resources whose name is a "lng\..." relative path
+    if (CompareStringOrdinal(lpName, 4, L"lng\\", 4, TRUE) != CSTR_EQUAL) {
+        return TRUE;
+    }
+    HPATHL hDest = Path_Copy(hAppDir);
+    Path_Append(hDest, lpName);          // appDir + lng\<locale>\<file>
+    HPATHL hParent = Path_Copy(hDest);
+    Path_RemoveFileSpec(hParent);
+    Path_CreateDirectoryEx(hParent);     // creates intermediate dirs (lng, lng\<locale>)
+    _ExtractResourceToFile(lpName, hDest);
+    Path_Release(hParent);
+    Path_Release(hDest);
+    return TRUE;
+}
+
 static void _ProvisionLanguagePacks(const HPATHL hAppDir)
 {
-    static const struct {
-        LPCWSTR res;
-        LPCWSTR sub;  // locale subfolder, or NULL for the lng root
-        LPCWSTR file;
-    } items[] = {
-        { L"LNGB_NP3",      NULL,    L"np3lng.dll" },
-        { L"LNGB_MP",       NULL,    L"mplng.dll" },
-        { L"LNG_NP3_PT_BR", L"pt-BR", L"np3lng.dll.mui" },
-        { L"LNG_MP_PT_BR",  L"pt-BR", L"mplng.dll.mui" },
-        { L"LNG_NP3_PT_PT", L"pt-PT", L"np3lng.dll.mui" },
-        { L"LNG_MP_PT_PT",  L"pt-PT", L"mplng.dll.mui" },
-    };
-    HPATHL hLngRoot = Path_Copy(hAppDir);
-    Path_Append(hLngRoot, L"lng");
-    Path_CreateDirectoryEx(hLngRoot);
-    for (int i = 0; i < (int)COUNTOF(items); ++i) {
-        HPATHL hDest = Path_Copy(hLngRoot);
-        if (items[i].sub) {
-            Path_Append(hDest, items[i].sub);
-            Path_CreateDirectoryEx(hDest);
-        }
-        Path_Append(hDest, items[i].file);
-        _ExtractResourceToFile(items[i].res, hDest);
-        Path_Release(hDest);
-    }
-    Path_Release(hLngRoot);
+    EnumResourceNamesW(Globals.hInstance, RT_RCDATA, _ProvisionResProc, (LONG_PTR)hAppDir);
 }
 
 //=============================================================================

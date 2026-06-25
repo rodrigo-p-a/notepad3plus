@@ -34,7 +34,7 @@ Baixe o **[Notepad3Plus-x64.exe](https://github.com/rodrigo-p-a/notepad3plus/rel
 | | **Notepad3 Plus** | VS Code |
 |---|---|---|
 | RAM | **~50 MB** | ~300–700 MB |
-| Tamanho / Size | **1 exe (~6 MB)** | ~350 MB+ |
+| Tamanho / Size | **1 exe (~18 MB, todos os idiomas)** | ~350 MB+ |
 | Tecnologia / Tech | **nativo C/Win32** | Electron |
 | Início / Startup | **instantâneo** | segundos |
 

@@ -39,10 +39,17 @@ recursos de um aplicativo nativo minúsculo.
   vez com a mesma organização** de painéis. Sem perguntas, sem perder nada.
 - **Nomear sem salvar** — dê um nome de exibição a qualquer aba, mesmo sem gravar
   em disco; o nome é lembrado.
+- **Reabrir aba fechada** — fechou sem querer? reabra com o conteúdo de volta.
 - **Várias abas em branco** e comando **"Apagar tudo e fechar editores"**.
 - **Um único executável portátil** — o `Notepad3.exe` (link estático) embarca o
   `minipath.exe` e o extrai sozinho quando preciso. Sem instalador e sem o
   *Visual C++ Redistributable*.
+- **Instalar / Desinstalar pelo próprio menu** — opção **Instalar (notepad3pp)**
+  copia o app para `C:\Program Files\Notepad3pp` (ou para a pasta do usuário, sem
+  exigir administrador) e cria o atalho **notepad3pp** no Menu Iniciar e na Área de
+  Trabalho; **Desinstalar** remove tudo. Sem instalador externo.
+- **Auto-atualização** — ao abrir uma versão mais nova (ex.: baixada), ela
+  substitui sozinha a cópia instalada, mantendo o atalho sempre na versão atual.
 
 ### Vantagens sobre um VS Code (para edição simples)
 Para abrir, editar e salvar arquivos do dia a dia, um editor nativo entrega a
@@ -120,11 +127,18 @@ Electron-based editor.
 - **Notepad that remembers itself** — on close it backs up **everything** open
   (including unsaved/untitled/empty) and **reopens it next time with the same pane
   layout**. No prompts, nothing lost.
+- **Reopen closed tab** — closed one by accident? bring it back with its content.
 - **Name a tab without saving**, create **multiple blank tabs**, and a **"Wipe all
   & close editors"** command.
 - **One portable executable** — the statically-linked `Notepad3.exe` embeds
   `minipath.exe` and self-extracts it on demand. No installer, no Visual C++
   Redistributable.
+- **Install / Uninstall from the menu** — **Install (notepad3pp)** copies the app
+  to `C:\Program Files\Notepad3pp` (or a per-user folder if not admin) and creates
+  a **notepad3pp** shortcut in the Start Menu and on the Desktop; **Uninstall**
+  removes it. No external installer.
+- **Auto-update** — launching a newer build (e.g. downloaded) silently replaces the
+  previously installed copy, so the shortcut always runs the latest version.
 
 ### Why over VS Code (for simple editing)
 

@@ -2082,6 +2082,9 @@ void Tabs_RestoreSession(void);
 //
 HWND InitInstance(const HINSTANCE hInstance, int nCmdShow)
 {
+    // if launched from a newer build, silently refresh a previously installed copy
+    App_AutoUpdateInstalled();
+
     // manual (not automatic) reset & initial state: not signaled (TRUE, FALSE)
     s_hEventAppIsClosing = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (!IS_VALID_HANDLE(s_hEventAppIsClosing)) {
@@ -3470,6 +3473,97 @@ bool Tabs_ActiveIsReusable(void)
 //  Tabs_CloseAt() - close the tab at index, prompting to save if needed.
 //  Returns false if the user cancelled.
 //
+//=============================================================================
+//
+//  Recently-closed tabs stack ("reopen closed tab"). Content is kept in memory
+//  for untitled/modified docs; clean named files are reloaded from disk.
+//
+typedef struct ClosedTab {
+    HPATHL  path;
+    WCHAR   name[MIDSZ_BUFFER];
+    bool    modified;
+    char*   content; // UTF-8 (AllocMem) or NULL
+    DocPosU len;
+} ClosedTab;
+
+#define NP3_MAX_CLOSED 16
+static ClosedTab s_closed[NP3_MAX_CLOSED];
+static int       s_closedCount = 0;
+
+static void _ClosedTab_Free(ClosedTab* c)
+{
+    if (c->path)    { Path_Release(c->path); c->path = NULL; }
+    if (c->content) { FreeMem(c->content);   c->content = NULL; }
+    ZeroMemory(c->name, sizeof(c->name));
+    c->len = 0;
+    c->modified = false;
+}
+
+//  push the *currently active* buffer (the one about to be closed) on the stack
+static void _Tabs_PushClosed(void)
+{
+    if (s_tabActive < 0) {
+        return;
+    }
+    if (s_closedCount == NP3_MAX_CLOSED) { // drop the oldest
+        _ClosedTab_Free(&s_closed[0]);
+        MoveMemory(&s_closed[0], &s_closed[1], sizeof(ClosedTab) * (NP3_MAX_CLOSED - 1));
+        ZeroMemory(&s_closed[NP3_MAX_CLOSED - 1], sizeof(ClosedTab));
+        --s_closedCount;
+    }
+    ClosedTab* const c = &s_closed[s_closedCount];
+    ZeroMemory(c, sizeof(*c));
+    c->path = Path_Copy(Paths.CurrentFile);
+    StringCchCopyW(c->name, COUNTOF(c->name), s_wchTitleExcerpt);
+    c->modified = IsSaveNeeded();
+    DocPos const len = SciCall_GetTextLength();
+    if ((Path_IsEmpty(Paths.CurrentFile) || c->modified) && (len > 0)) {
+        c->content = (char*)AllocMem((size_t)len + 1, HEAP_ZERO_MEMORY);
+        if (c->content) {
+            SciCall_GetText(len + 1, c->content);
+            c->len = (DocPosU)len;
+        }
+    }
+    ++s_closedCount;
+}
+
+bool Tabs_HasClosed(void) { return (s_closedCount > 0); }
+
+//  reopen the most recently closed tab in the active pane
+void Tabs_ReopenClosed(void)
+{
+    if (s_closedCount <= 0) {
+        return;
+    }
+    ClosedTab* const c = &s_closed[--s_closedCount];
+    if (Tabs_IsActive() && !Tabs_ActiveIsReusable()) {
+        Tabs_AddAndActivate();
+    }
+    if (c->content && (c->len > 0)) {
+        EditSetNewText(Globals.hwndEdit, c->content, c->len, true, false);
+    } else if (Path_IsNotEmpty(c->path) && Path_IsExistingFile(c->path)) {
+        FileLoad(c->path, FLF_DontSave, 0, 0); // clean named -> from disk
+    } else {
+        EditSetNewText(Globals.hwndEdit, "", 0, true, false);
+    }
+    if (Path_IsNotEmpty(c->path)) {
+        Path_Reset(Paths.CurrentFile, Path_Get(c->path));
+        Style_SetLexerFromFile(Globals.hwndEdit, Paths.CurrentFile);
+    } else {
+        Path_Empty(Paths.CurrentFile, false);
+        Style_SetDefaultLexer(Globals.hwndEdit);
+    }
+    StringCchCopyW(s_wchTitleExcerpt, COUNTOF(s_wchTitleExcerpt), c->name);
+    if (c->modified && (c->content || Path_IsEmpty(c->path))) {
+        SetSaveNeeded(true);
+    } else {
+        SetSavePoint();
+    }
+    Tabs_SyncActiveFromGlobals();
+    SetFocus(Globals.hwndEdit);
+    _ClosedTab_Free(c);
+}
+
 bool Tabs_CloseAt(int idx)
 {
     if ((idx < 0) || (idx >= s_tabCount)) {
@@ -3481,6 +3575,8 @@ bool Tabs_CloseAt(int idx)
     if (!FileSave(FSF_Ask)) {
         return false; // cancelled
     }
+
+    _Tabs_PushClosed(); // remember this tab so it can be reopened
 
     if (s_tabCount <= 1) {
         // keep at least one tab: reset the active one to a blank untitled doc
@@ -7638,6 +7734,18 @@ static bool _HandleFileCommands(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lPar
 
     case IDM_FILE_WIPEALL:
         Tabs_WipeAll();
+        break;
+
+    case IDM_FILE_REOPENCLOSED:
+        Tabs_ReopenClosed();
+        break;
+
+    case IDM_FILE_INSTALL:
+        App_Install();
+        break;
+
+    case IDM_FILE_UNINSTALL:
+        App_Uninstall();
         break;
 
 
@@ -12489,6 +12597,7 @@ LRESULT MsgNotify(HWND hwnd, WPARAM wParam, LPARAM lParam)
             }
             HMENU hmPop = CreatePopupMenu();
             AppendMenu(hmPop, MF_STRING, IDM_FILE_NEW, L"Nova aba / New Tab");
+            AppendMenu(hmPop, MF_STRING | (Tabs_HasClosed() ? 0 : MF_GRAYED), IDM_FILE_REOPENCLOSED, L"Reabrir aba fechada / Reopen Closed Tab");
             AppendMenu(hmPop, MF_STRING | (idx >= 0 ? 0 : MF_GRAYED), IDM_FILE_RENAMETAB, L"Renomear aba / Rename Tab…");
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
             AppendMenu(hmPop, MF_STRING | (idx >= 0 ? 0 : MF_GRAYED), IDM_FILE_CLOSETAB, L"Fechar aba / Close Tab");
@@ -12497,6 +12606,9 @@ LRESULT MsgNotify(HWND hwnd, WPARAM wParam, LPARAM lParam)
             AppendMenu(hmPop, MF_STRING, IDM_VIEW_SPLIT_VERT, L"Dividir → (lado a lado) / Split Right");
             AppendMenu(hmPop, MF_STRING, IDM_VIEW_SPLIT_HORZ, L"Dividir ↓ (empilhado) / Split Down");
             AppendMenu(hmPop, MF_STRING | (s_paneCount > 1 ? 0 : MF_GRAYED), IDM_VIEW_CLOSEPANE, L"Fechar painel / Close Pane");
+            AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
+            AppendMenu(hmPop, MF_STRING, IDM_FILE_INSTALL, L"Instalar (notepad3pp) / Install");
+            AppendMenu(hmPop, MF_STRING, IDM_FILE_UNINSTALL, L"Desinstalar / Uninstall");
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
             AppendMenu(hmPop, MF_STRING, IDM_FILE_WIPEALL, L"Apagar tudo e fechar editores / Wipe all");
             TrackPopupMenu(hmPop, TPM_LEFTALIGN | TPM_TOPALIGN, pt.x, pt.y, 0, Globals.hwndMain, NULL);

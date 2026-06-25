@@ -892,6 +892,9 @@
 #define IDM_VIEW_CLOSEPANE              43806
 #define IDM_FILE_RENAMETAB              43807
 #define IDM_FILE_WIPEALL                43808
+#define IDM_FILE_REOPENCLOSED           43809
+#define IDM_FILE_INSTALL                43810
+#define IDM_FILE_UNINSTALL              43811
 
 
 #define IDS_ENC_ANSI                    61000

@@ -80,6 +80,9 @@ void            RestorePrevScreenPos(HWND hwnd);
 
 void DialogNewWindow(HWND hwnd, bool bSaveBeforeOpen, const HPATHL hFilePath, WININFO* wi);
 void DialogFileBrowse(HWND hwnd);
+void App_Install(void);
+void App_Uninstall(void);
+void App_AutoUpdateInstalled(void);
 void DialogGrepWin(HWND hwnd, LPCWSTR searchPattern);
 void DialogAdminExe(HWND hwnd,bool);
 

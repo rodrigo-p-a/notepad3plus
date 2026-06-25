@@ -22,6 +22,8 @@
 #include <commdlg.h>
 #include <shlobj.h>
 
+#pragma comment(lib, "version.lib") // App_AutoUpdateInstalled() version query
+
 #include <string.h>
 
 #pragma warning( push )
@@ -5133,6 +5135,229 @@ static bool _ExtractEmbeddedExe(LPCWSTR resName, LPCWSTR fileName, HPATHL hOut)
     BOOL const ok = WriteFile(h, data, sz, &written, NULL);
     CloseHandle(h);
     return (ok && (written == sz));
+}
+
+//=============================================================================
+//
+//  _CreateShortcut() - create a .lnk pointing to target (COM IShellLink)
+//
+static bool _CreateShortcut(LPCWSTR target, LPCWSTR lnkPath, LPCWSTR desc, LPCWSTR workdir)
+{
+    IShellLinkW* psl = NULL;
+    HRESULT hr = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
+                                  &IID_IShellLinkW, (void**)&psl);
+    if (FAILED(hr) || !psl) {
+        return false;
+    }
+    psl->lpVtbl->SetPath(psl, target);
+    if (workdir) { psl->lpVtbl->SetWorkingDirectory(psl, workdir); }
+    if (desc)    { psl->lpVtbl->SetDescription(psl, desc); }
+    psl->lpVtbl->SetIconLocation(psl, target, 0);
+
+    IPersistFile* ppf = NULL;
+    hr = psl->lpVtbl->QueryInterface(psl, &IID_IPersistFile, (void**)&ppf);
+    bool ok = false;
+    if (SUCCEEDED(hr) && ppf) {
+        ok = SUCCEEDED(ppf->lpVtbl->Save(ppf, lnkPath, TRUE));
+        ppf->lpVtbl->Release(ppf);
+    }
+    psl->lpVtbl->Release(psl);
+    return ok;
+}
+
+//  try to install (copy self) into <baseDir>\Notepad3pp\Notepad3.exe
+static bool _TryInstallTo(LPCWSTR self, const HPATHL hBaseDir, HPATHL hInstOut, HPATHL hExeOut)
+{
+    Path_Reset(hInstOut, Path_Get(hBaseDir));
+    Path_Append(hInstOut, L"Notepad3pp");
+    HRESULT const hr = Path_CreateDirectoryEx(hInstOut);
+    if (!(SUCCEEDED(hr) || (hr == HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS)))) {
+        return false;
+    }
+    Path_Reset(hExeOut, Path_Get(hInstOut));
+    Path_Append(hExeOut, L"Notepad3.exe");
+    return (CopyFileW(self, Path_Get(hExeOut), FALSE) != 0);
+}
+
+//  read the binary version (VS_FIXEDFILEINFO) as a comparable 64-bit number
+static ULONGLONG _FileVersion(LPCWSTR path)
+{
+    DWORD dummy = 0;
+    DWORD const sz = GetFileVersionInfoSizeW(path, &dummy);
+    if (sz == 0) {
+        return 0;
+    }
+    void* const buf = AllocMem(sz, HEAP_ZERO_MEMORY);
+    if (!buf) {
+        return 0;
+    }
+    ULONGLONG ver = 0;
+    if (GetFileVersionInfoW(path, 0, sz, buf)) {
+        VS_FIXEDFILEINFO* ffi = NULL;
+        UINT len = 0;
+        if (VerQueryValueW(buf, L"\\", (void**)&ffi, &len) && ffi) {
+            ver = ((ULONGLONG)ffi->dwFileVersionMS << 32) | (ULONGLONG)ffi->dwFileVersionLS;
+        }
+    }
+    FreeMem(buf);
+    return ver;
+}
+
+//=============================================================================
+//
+//  App_AutoUpdateInstalled() - if a newer build is launched from elsewhere,
+//  silently replace the previously "installed" copy (in Program Files\Notepad3pp
+//  or the per-user equivalent) so the Start Menu shortcut always runs the latest.
+//
+void App_AutoUpdateInstalled(void)
+{
+    WCHAR self[MAX_PATH_EXPLICIT] = { L'\0' };
+    GetModuleFileNameW(NULL, self, COUNTOF(self));
+    ULONGLONG const selfVer = _FileVersion(self);
+    if (selfVer == 0) {
+        return;
+    }
+    const KNOWNFOLDERID* bases[2] = { &FOLDERID_ProgramFiles, &FOLDERID_LocalAppData };
+    for (int i = 0; i < 2; ++i) {
+        HPATHL hExe = Path_Allocate(NULL);
+        if (Path_GetKnownFolder(bases[i], hExe)) {
+            if (i == 1) { Path_Append(hExe, L"Programs"); }
+            Path_Append(hExe, L"Notepad3pp");
+            Path_Append(hExe, L"Notepad3.exe");
+            if (Path_IsExistingFile(hExe) &&
+                (CompareStringOrdinal(self, -1, Path_Get(hExe), -1, TRUE) != CSTR_EQUAL)) {
+                if (selfVer > _FileVersion(Path_Get(hExe))) {
+                    CopyFileW(self, Path_Get(hExe), FALSE); // overwrite old install
+                }
+            }
+        }
+        Path_Release(hExe);
+    }
+}
+
+//=============================================================================
+//
+//  App_Install() - copy the running exe to Program Files\Notepad3pp (or a
+//  per-user equivalent if not elevated) and create "notepad3pp" shortcuts.
+//
+void App_Install(void)
+{
+    if (MessageBoxW(Globals.hwndMain,
+            L"Instalar o notepad3pp neste computador?\n\n"
+            L"Sera copiado para 'Program Files\\Notepad3pp' (ou para a pasta do "
+            L"usuario, se nao houver permissao de administrador) e criara um atalho "
+            L"'notepad3pp' no Menu Iniciar e na Area de Trabalho.",
+            L"notepad3pp - Instalar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
+        return;
+    }
+
+    WCHAR self[MAX_PATH_EXPLICIT] = { L'\0' };
+    GetModuleFileNameW(NULL, self, COUNTOF(self));
+
+    HPATHL hInst = Path_Allocate(NULL);
+    HPATHL hExe  = Path_Allocate(NULL);
+    HPATHL hBase = Path_Allocate(NULL);
+    bool installed = false;
+
+    // 1) try Program Files (works when running elevated)
+    if (Path_GetKnownFolder(&FOLDERID_ProgramFiles, hBase)) {
+        installed = _TryInstallTo(self, hBase, hInst, hExe);
+    }
+    // 2) fall back to per-user %LOCALAPPDATA%\Programs (no admin needed)
+    if (!installed && Path_GetKnownFolder(&FOLDERID_LocalAppData, hBase)) {
+        Path_Append(hBase, L"Programs");
+        Path_CreateDirectoryEx(hBase);
+        installed = _TryInstallTo(self, hBase, hInst, hExe);
+    }
+
+    if (!installed) {
+        Path_Release(hInst); Path_Release(hExe); Path_Release(hBase);
+        MessageBoxW(Globals.hwndMain, L"Nao foi possivel instalar (sem permissao de escrita).",
+                    L"notepad3pp", MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    // shortcuts (per-user Start Menu + Desktop) named "notepad3pp"
+    HPATHL hLnk = Path_Allocate(NULL);
+    if (Path_GetKnownFolder(&FOLDERID_Programs, hLnk)) {
+        Path_Append(hLnk, L"notepad3pp.lnk");
+        _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3pp", Path_Get(hInst));
+    }
+    if (Path_GetKnownFolder(&FOLDERID_Desktop, hLnk)) {
+        Path_Append(hLnk, L"notepad3pp.lnk");
+        _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3pp", Path_Get(hInst));
+    }
+
+    WCHAR msg[1024];
+    StringCchPrintfW(msg, COUNTOF(msg),
+        L"notepad3pp instalado em:\n%s\n\nAtalho 'notepad3pp' criado no Menu Iniciar e na Area de Trabalho.",
+        Path_Get(hInst));
+    MessageBoxW(Globals.hwndMain, msg, L"notepad3pp - Instalado", MB_OK | MB_ICONINFORMATION);
+
+    Path_Release(hLnk); Path_Release(hInst); Path_Release(hExe); Path_Release(hBase);
+}
+
+//  delete a "notepad3pp.lnk" shortcut from a known folder
+static void _DeleteShortcutFrom(REFKNOWNFOLDERID rfid)
+{
+    HPATHL h = Path_Allocate(NULL);
+    if (Path_GetKnownFolder(rfid, h)) {
+        Path_Append(h, L"notepad3pp.lnk");
+        if (Path_IsExistingFile(h)) {
+            Path_DeleteFile(h);
+        }
+    }
+    Path_Release(h);
+}
+
+//=============================================================================
+//
+//  App_Uninstall() - remove the installed copy and the "notepad3pp" shortcuts.
+//
+void App_Uninstall(void)
+{
+    if (MessageBoxW(Globals.hwndMain,
+            L"Desinstalar o notepad3pp?\n\nRemove os atalhos 'notepad3pp' e a copia "
+            L"instalada (em Program Files\\Notepad3pp ou na pasta do usuario).",
+            L"notepad3pp - Desinstalar", MB_YESNO | MB_ICONWARNING) != IDYES) {
+        return;
+    }
+
+    _DeleteShortcutFrom(&FOLDERID_Programs);
+    _DeleteShortcutFrom(&FOLDERID_Desktop);
+
+    WCHAR self[MAX_PATH_EXPLICIT] = { L'\0' };
+    GetModuleFileNameW(NULL, self, COUNTOF(self));
+
+    // candidate install dirs
+    const KNOWNFOLDERID* bases[2] = { &FOLDERID_ProgramFiles, &FOLDERID_LocalAppData };
+    int removed = 0;
+    for (int i = 0; i < 2; ++i) {
+        HPATHL hDir = Path_Allocate(NULL);
+        if (Path_GetKnownFolder(bases[i], hDir)) {
+            if (i == 1) { Path_Append(hDir, L"Programs"); }
+            Path_Append(hDir, L"Notepad3pp");
+            HPATHL hExe = Path_Copy(hDir);
+            Path_Append(hExe, L"Notepad3.exe");
+            if (Path_IsExistingFile(hExe)) {
+                // if we're running the installed copy, delay-delete on reboot
+                if (CompareStringOrdinal(self, -1, Path_Get(hExe), -1, TRUE) == CSTR_EQUAL) {
+                    MoveFileExW(Path_Get(hExe), NULL, MOVEFILE_DELAY_UNTIL_REBOOT);
+                } else {
+                    Path_DeleteFile(hExe);
+                    RemoveDirectoryW(Path_Get(hDir));
+                }
+                ++removed;
+            }
+            Path_Release(hExe);
+        }
+        Path_Release(hDir);
+    }
+
+    MessageBoxW(Globals.hwndMain,
+        (removed > 0) ? L"notepad3pp desinstalado. Os atalhos foram removidos."
+                      : L"Atalhos removidos. (Nenhuma copia instalada encontrada.)",
+        L"notepad3pp", MB_OK | MB_ICONINFORMATION);
 }
 
 //=============================================================================

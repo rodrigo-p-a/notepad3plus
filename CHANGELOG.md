@@ -6,6 +6,19 @@ Cada alteração feita ao longo do tempo é registrada aqui.
 
 ## [Não lançado]
 
+### 2026-06-25 (atualização)
+
+#### Adicionado
+- **Reabrir aba fechada:** comando no menu de contexto da aba que reabre a última
+  aba fechada com o conteúdo de volta (pilha em memória das últimas 16).
+- **Instalar / Desinstalar pelo menu:** "Instalar (notepad3pp)" copia o app para
+  `C:\Program Files\Notepad3pp` (ou pasta do usuário, sem exigir admin) e cria o
+  atalho **notepad3pp** no Menu Iniciar e na Área de Trabalho; "Desinstalar" remove
+  os atalhos e a cópia instalada. Sem instalador externo.
+- **Auto-atualização:** ao abrir uma versão mais nova (ex.: baixada), o app
+  substitui sozinho a cópia instalada (compara a versão do binário), mantendo o
+  atalho sempre apontando para a versão mais recente.
+
 ### 2026-06-25
 
 #### Adicionado

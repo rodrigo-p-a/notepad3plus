@@ -1250,11 +1250,21 @@ void InvalidParameterHandler(const wchar_t* expression,
 }
 
 
+//  pick the Portuguese or English label according to the UI language the user
+//  set (the PT/EN pairing is only for docs; the app shows a single language).
+static LPCWSTR _Loc(LPCWSTR pt, LPCWSTR en)
+{
+    WCHAR const c0 = Globals.CurrentLngLocaleName[0];
+    WCHAR const c1 = Globals.CurrentLngLocaleName[1];
+    bool const ptUI = ((c0 == L'p') || (c0 == L'P')) && ((c1 == L't') || (c1 == L'T'));
+    return ptUI ? pt : en;
+}
+
 //=============================================================================
 //
-//  _InsertToolsMenu() - add a "Ferramentas / Tools" menu to the menu bar at
-//  runtime (the bar comes from the language DLL, so we inject it here) with the
-//  notepad3plus extras: install/update/uninstall, split and reopen-closed-tab.
+//  _InsertToolsMenu() - add a "Tools" menu to the menu bar at runtime (the bar
+//  comes from the language DLL, so we inject it here) with the notepad3plus
+//  extras: install/update/uninstall, split and reopen-closed-tab.
 //
 static void _InsertToolsMenu(HMENU hMenuBar)
 {
@@ -1265,18 +1275,18 @@ static void _InsertToolsMenu(HMENU hMenuBar)
     if (!hTools) {
         return;
     }
-    AppendMenuW(hTools, MF_STRING, IDM_FILE_INSTALL,      L"Instalar notepad3plus / Install");
-    AppendMenuW(hTools, MF_STRING, IDM_FILE_CHECKUPDATE,  L"Atualizar (GitHub) / Update");
-    AppendMenuW(hTools, MF_STRING, IDM_FILE_UNINSTALL,    L"Desinstalar / Uninstall");
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_INSTALL,      _Loc(L"Instalar notepad3plus", L"Install notepad3plus"));
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_CHECKUPDATE,  _Loc(L"Atualizar (GitHub)", L"Check for updates (GitHub)"));
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_UNINSTALL,    _Loc(L"Desinstalar", L"Uninstall"));
     AppendMenuW(hTools, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(hTools, MF_STRING, IDM_VIEW_SPLIT_VERT,   L"Dividir editor -> (lado a lado) / Split right");
-    AppendMenuW(hTools, MF_STRING, IDM_VIEW_SPLIT_HORZ,   L"Dividir editor v (empilhado) / Split down");
-    AppendMenuW(hTools, MF_STRING, IDM_VIEW_CLOSEPANE,    L"Fechar painel / Close pane");
+    AppendMenuW(hTools, MF_STRING, IDM_VIEW_SPLIT_VERT,   _Loc(L"Dividir editor (lado a lado)", L"Split editor (side by side)"));
+    AppendMenuW(hTools, MF_STRING, IDM_VIEW_SPLIT_HORZ,   _Loc(L"Dividir editor (empilhado)", L"Split editor (stacked)"));
+    AppendMenuW(hTools, MF_STRING, IDM_VIEW_CLOSEPANE,    _Loc(L"Fechar painel", L"Close pane"));
     AppendMenuW(hTools, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(hTools, MF_STRING, IDM_FILE_REOPENCLOSED, L"Reabrir aba fechada / Reopen closed tab");
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_REOPENCLOSED, _Loc(L"Reabrir aba fechada", L"Reopen closed tab"));
     int const cnt = GetMenuItemCount(hMenuBar);
     UINT const pos = (cnt > 0) ? (UINT)(cnt - 1) : 0; // before "Help"
-    InsertMenuW(hMenuBar, pos, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hTools, L"Ferramentas / Tools");
+    InsertMenuW(hMenuBar, pos, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hTools, _Loc(L"Ferramentas", L"Tools"));
 }
 
 //=============================================================================
@@ -5168,8 +5178,11 @@ void Tabs_RenameActive(void)
     } else if (Path_IsNotEmpty(Paths.CurrentFile)) {
         StringCchCopyW(name, COUNTOF(name), Path_FindFileName(Paths.CurrentFile));
     }
-    if (_InputBox(Globals.hwndMain, L"Renomear aba / Rename tab",
-                  L"Nome do editor (apenas exibição, não salva em disco):", name, COUNTOF(name))) {
+    if (_InputBox(Globals.hwndMain,
+                  _Loc(L"Renomear aba", L"Rename tab"),
+                  _Loc(L"Nome do editor (apenas exibição, não salva em disco):",
+                       L"Editor name (display only, not saved to disk):"),
+                  name, COUNTOF(name))) {
         StringCchCopyW(s_wchTitleExcerpt, COUNTOF(s_wchTitleExcerpt), name);
         Tabs_SyncActiveFromGlobals();   // copies excerpt into the active buffer + relabels
         UpdateTitlebar(Globals.hwndMain);
@@ -5202,9 +5215,11 @@ void Tabs_WipeAll(void)
 {
     // confirm (destructive: discards every open editor + remembered data)
     if (MessageBoxW(Globals.hwndMain,
-                    L"Isto vai FECHAR todos os editores (descartando o que não foi salvo) "
-                    L"e APAGAR todos os dados lembrados da sessão.\n\nContinuar?",
-                    L"Notepad3", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
+                    _Loc(L"Isto vai FECHAR todos os editores (descartando o que não foi salvo) "
+                         L"e APAGAR todos os dados lembrados da sessão.\n\nContinuar?",
+                         L"This will CLOSE all editors (discarding anything unsaved) and ERASE "
+                         L"all remembered session data.\n\nContinue?"),
+                    L"notepad3plus", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
         return;
     }
 
@@ -12630,19 +12645,19 @@ LRESULT MsgNotify(HWND hwnd, WPARAM wParam, LPARAM lParam)
                 }
             }
             HMENU hmPop = CreatePopupMenu();
-            AppendMenu(hmPop, MF_STRING, IDM_FILE_NEW, L"Nova aba / New Tab");
-            AppendMenu(hmPop, MF_STRING | (Tabs_HasClosed() ? 0 : MF_GRAYED), IDM_FILE_REOPENCLOSED, L"Reabrir aba fechada / Reopen Closed Tab");
-            AppendMenu(hmPop, MF_STRING | (idx >= 0 ? 0 : MF_GRAYED), IDM_FILE_RENAMETAB, L"Renomear aba / Rename Tab…");
+            AppendMenu(hmPop, MF_STRING, IDM_FILE_NEW, _Loc(L"Nova aba", L"New tab"));
+            AppendMenu(hmPop, MF_STRING | (Tabs_HasClosed() ? 0 : MF_GRAYED), IDM_FILE_REOPENCLOSED, _Loc(L"Reabrir aba fechada", L"Reopen closed tab"));
+            AppendMenu(hmPop, MF_STRING | (idx >= 0 ? 0 : MF_GRAYED), IDM_FILE_RENAMETAB, _Loc(L"Renomear aba…", L"Rename tab…"));
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
-            AppendMenu(hmPop, MF_STRING | (idx >= 0 ? 0 : MF_GRAYED), IDM_FILE_CLOSETAB, L"Fechar aba / Close Tab");
-            AppendMenu(hmPop, MF_STRING | (s_tabCount > 1 ? 0 : MF_GRAYED), IDM_FILE_CLOSEOTHERTABS, L"Fechar as outras / Close Others");
+            AppendMenu(hmPop, MF_STRING | (idx >= 0 ? 0 : MF_GRAYED), IDM_FILE_CLOSETAB, _Loc(L"Fechar aba", L"Close tab"));
+            AppendMenu(hmPop, MF_STRING | (s_tabCount > 1 ? 0 : MF_GRAYED), IDM_FILE_CLOSEOTHERTABS, _Loc(L"Fechar as outras", L"Close others"));
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
-            AppendMenu(hmPop, MF_STRING, IDM_VIEW_SPLIT_VERT, L"Dividir → (lado a lado) / Split Right");
-            AppendMenu(hmPop, MF_STRING, IDM_VIEW_SPLIT_HORZ, L"Dividir ↓ (empilhado) / Split Down");
-            AppendMenu(hmPop, MF_STRING | (s_paneCount > 1 ? 0 : MF_GRAYED), IDM_VIEW_CLOSEPANE, L"Fechar painel / Close Pane");
+            AppendMenu(hmPop, MF_STRING, IDM_VIEW_SPLIT_VERT, _Loc(L"Dividir (lado a lado)", L"Split (side by side)"));
+            AppendMenu(hmPop, MF_STRING, IDM_VIEW_SPLIT_HORZ, _Loc(L"Dividir (empilhado)", L"Split (stacked)"));
+            AppendMenu(hmPop, MF_STRING | (s_paneCount > 1 ? 0 : MF_GRAYED), IDM_VIEW_CLOSEPANE, _Loc(L"Fechar painel", L"Close pane"));
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
-            AppendMenu(hmPop, MF_STRING, IDM_FILE_WIPEALL, L"Apagar tudo e fechar editores / Wipe all");
-            // (Instalar/Atualizar/Desinstalar agora no menu "Ferramentas")
+            AppendMenu(hmPop, MF_STRING, IDM_FILE_WIPEALL, _Loc(L"Apagar tudo e fechar editores", L"Wipe all data & close editors"));
+            // (Install/Update/Uninstall are now in the Tools menu)
             TrackPopupMenu(hmPop, TPM_LEFTALIGN | TPM_TOPALIGN, pt.x, pt.y, 0, Globals.hwndMain, NULL);
             DestroyMenu(hmPop);
             result = TRUE;

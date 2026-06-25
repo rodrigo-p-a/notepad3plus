@@ -6,6 +6,22 @@ Cada alteração feita ao longo do tempo é registrada aqui.
 
 ## [Não lançado]
 
+### 2026-06-25 (idioma do menu + Menu Iniciar)
+
+#### Alterado
+- **Menus respeitam o idioma do usuário:** os rótulos de menu, caixas de diálogo
+  e mensagens (Ferramentas, menu de contexto da aba, renomear, apagar tudo,
+  instalar/desinstalar/atualizar, Sobre) deixam de ser bilíngues fixos
+  (PT+EN juntos) e passam a usar o helper `_Loc(pt, en)`, exibindo **apenas** o
+  idioma configurado na interface (PT se a locale começa com "pt", senão EN).
+  O par PT/EN bilíngue fica **somente** na documentação (README/CHANGELOG/git).
+
+#### Corrigido
+- **Instalar cria entrada no Menu Iniciar imediatamente:** após criar os atalhos
+  `notepad3plus.lnk` (Menu Iniciar e Área de Trabalho), o app chama
+  `SHChangeNotify` para que o shell mostre a entrada na hora; a mensagem de
+  conclusão informa se o atalho do Menu Iniciar foi criado.
+
 ### 2026-06-25 (marca + menu Ferramentas)
 
 #### Alterado (nome do executável)

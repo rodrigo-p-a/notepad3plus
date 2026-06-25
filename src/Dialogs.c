@@ -49,6 +49,9 @@
 
 //=============================================================================
 
+// pick the Portuguese or English text by the UI language the user set (def below)
+static LPCWSTR _Loc(LPCWSTR pt, LPCWSTR en);
+
 #define OIC_SAMPLE          32512
 #define OIC_HAND            32513
 #define OIC_QUES            32514
@@ -1154,7 +1157,7 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam
                             (StrCmpNW(full, L"Notepad3", 8) == 0) ? (full + 8) : full);
             SetDlgItemText(hwnd, IDC_VERSION, wchVer);
         }
-        SetWindowText(hwnd, L"Sobre o notepad3plus / About notepad3plus");
+        SetWindowText(hwnd, _Loc(L"Sobre o notepad3plus", L"About notepad3plus"));
         SetDlgItemText(hwnd, IDC_SCI_VERSION, VERSION_SCIVERSION L", " VERSION_LXIVERSION L", ID='" _W(_STRG(VERSION_COMMIT_ID)) L"'");
         SetDlgItemText(hwnd, IDC_COPYRIGHT, _W(VERSION_LEGALCOPYRIGHT));
         SetDlgItemText(hwnd, IDC_AUTHORNAME, _W(VERSION_AUTHORNAME));
@@ -1242,9 +1245,13 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam
             // prepend the fork credit (keeps all the original credits below)
             SendDlgItemMessage(hwnd, IDC_RICHEDITABOUT, EM_SETSEL, 0, 0);
             SendDlgItemMessageW(hwnd, IDC_RICHEDITABOUT, EM_REPLACESEL, FALSE,
-                (LPARAM)L"notepad3plus (fork do Notepad3): abas + split + sessao.\r\n"
-                        L"Ideia/direcao: Rodrigo. Implementacao (co-autor): Claude Opus 4.8.\r\n"
-                        L"https://github.com/rodrigo-p-a/notepad3plus\r\n\r\n");
+                (LPARAM)_Loc(
+                    L"notepad3plus (fork do Notepad3): abas + split + sessao.\r\n"
+                    L"Ideia/direcao: Rodrigo. Implementacao (co-autor): Claude Opus 4.8.\r\n"
+                    L"https://github.com/rodrigo-p-a/notepad3plus\r\n\r\n",
+                    L"notepad3plus (Notepad3 fork): tabs + split + session memory.\r\n"
+                    L"Idea/direction: Rodrigo. Implementation (co-author): Claude Opus 4.8.\r\n"
+                    L"https://github.com/rodrigo-p-a/notepad3plus\r\n\r\n"));
         }
         SendDlgItemMessage(hwnd, IDC_RICHEDITABOUT, EM_SHOWSCROLLBAR, SB_HORZ, (LPARAM)(dpi > USER_DEFAULT_SCREEN_DPI));
 
@@ -5102,6 +5109,15 @@ void DialogNewWindow(HWND hwnd, bool bSaveBeforeOpen, const HPATHL hFilePath, WI
 }
 
 
+//  pick the Portuguese or English text by the UI language the user set
+static LPCWSTR _Loc(LPCWSTR pt, LPCWSTR en)
+{
+    WCHAR const c0 = Globals.CurrentLngLocaleName[0];
+    WCHAR const c1 = Globals.CurrentLngLocaleName[1];
+    bool const ptUI = ((c0 == L'p') || (c0 == L'P')) && ((c1 == L't') || (c1 == L'T'));
+    return ptUI ? pt : en;
+}
+
 //=============================================================================
 //
 //  _ExtractEmbeddedExe() - single-file distribution: when a bundled helper exe
@@ -5336,8 +5352,10 @@ void App_CheckUpdateOnline(void)
     char* json = NULL;
     DWORD jlen = 0;
     if (!_HttpFetch(NP3PP_UPDATE_API, NULL, &json, &jlen) || !json) {
-        MessageBoxW(Globals.hwndMain, L"Nao foi possivel verificar atualizacoes (sem internet?).",
-                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
+        MessageBoxW(Globals.hwndMain,
+                    _Loc(L"Nao foi possivel verificar atualizacoes (sem internet?).",
+                         L"Could not check for updates (no internet?)."),
+                    L"notepad3plus", MB_OK | MB_ICONWARNING);
         if (json) { FreeMem(json); }
         return;
     }
@@ -5345,8 +5363,10 @@ void App_CheckUpdateOnline(void)
     bool const hasAsset = _ParseAssetUrl(json, url, COUNTOF(url));
     FreeMem(json);
     if (!hasAsset) {
-        MessageBoxW(Globals.hwndMain, L"Nenhum download encontrado na ultima release.",
-                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
+        MessageBoxW(Globals.hwndMain,
+                    _Loc(L"Nenhum download encontrado na ultima release.",
+                         L"No download found in the latest release."),
+                    L"notepad3plus", MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -5365,8 +5385,9 @@ void App_CheckUpdateOnline(void)
     }
     if (!dl) {
         Path_DeleteFile(hTmp); Path_Release(hTmp);
-        MessageBoxW(Globals.hwndMain, L"Falha ao baixar a atualizacao.",
-                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
+        MessageBoxW(Globals.hwndMain,
+                    _Loc(L"Falha ao baixar a atualizacao.", L"Failed to download the update."),
+                    L"notepad3plus", MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -5377,13 +5398,15 @@ void App_CheckUpdateOnline(void)
 
     if (newVer <= curVer) {
         Path_DeleteFile(hTmp); Path_Release(hTmp);
-        MessageBoxW(Globals.hwndMain, L"Voce ja esta na versao mais recente.",
-                    L"notepad3plus - Atualizar", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(Globals.hwndMain,
+                    _Loc(L"Voce ja esta na versao mais recente.", L"You already have the latest version."),
+                    L"notepad3plus", MB_OK | MB_ICONINFORMATION);
         return;
     }
     if (MessageBoxW(Globals.hwndMain,
-            L"Uma versao mais nova foi baixada.\n\nAtualizar e reiniciar o notepad3plus agora?",
-            L"notepad3plus - Atualizar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
+            _Loc(L"Uma versao mais nova foi baixada.\n\nAtualizar e reiniciar o notepad3plus agora?",
+                 L"A newer version was downloaded.\n\nUpdate and restart notepad3plus now?"),
+            L"notepad3plus", MB_YESNO | MB_ICONQUESTION) != IDYES) {
         Path_DeleteFile(hTmp); Path_Release(hTmp);
         return;
     }
@@ -5401,8 +5424,10 @@ void App_CheckUpdateOnline(void)
         // rollback
         MoveFileExW(oldp, self, MOVEFILE_REPLACE_EXISTING);
         Path_DeleteFile(hTmp); Path_Release(hTmp);
-        MessageBoxW(Globals.hwndMain, L"Nao foi possivel substituir o executavel (permissao?).",
-                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
+        MessageBoxW(Globals.hwndMain,
+                    _Loc(L"Nao foi possivel substituir o executavel (permissao?).",
+                         L"Could not replace the executable (permission?)."),
+                    L"notepad3plus", MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -5454,11 +5479,15 @@ void App_AutoUpdateInstalled(void)
 void App_Install(void)
 {
     if (MessageBoxW(Globals.hwndMain,
-            L"Instalar o notepad3plus neste computador?\n\n"
-            L"Sera copiado para 'Program Files\\Notepad3plus' (ou para a pasta do "
-            L"usuario, se nao houver permissao de administrador) e criara um atalho "
-            L"'notepad3plus' no Menu Iniciar e na Area de Trabalho.",
-            L"notepad3plus - Instalar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
+            _Loc(L"Instalar o notepad3plus neste computador?\n\n"
+                 L"Sera copiado para 'Program Files\\Notepad3plus' (ou para a pasta do "
+                 L"usuario, se nao houver permissao de administrador) e criara um atalho "
+                 L"'notepad3plus' no Menu Iniciar e na Area de Trabalho.",
+                 L"Install notepad3plus on this computer?\n\n"
+                 L"It will be copied to 'Program Files\\Notepad3plus' (or to your user "
+                 L"folder if you are not an administrator) and a 'notepad3plus' shortcut "
+                 L"will be created in the Start Menu and on the Desktop."),
+            L"notepad3plus", MB_YESNO | MB_ICONQUESTION) != IDYES) {
         return;
     }
 
@@ -5483,27 +5512,34 @@ void App_Install(void)
 
     if (!installed) {
         Path_Release(hInst); Path_Release(hExe); Path_Release(hBase);
-        MessageBoxW(Globals.hwndMain, L"Nao foi possivel instalar (sem permissao de escrita).",
+        MessageBoxW(Globals.hwndMain,
+                    _Loc(L"Nao foi possivel instalar (sem permissao de escrita).",
+                         L"Could not install (no write permission)."),
                     L"notepad3plus", MB_OK | MB_ICONWARNING);
         return;
     }
 
     // shortcuts (per-user Start Menu + Desktop) named "notepad3plus"
+    bool smOk = false;
     HPATHL hLnk = Path_Allocate(NULL);
     if (Path_GetKnownFolder(&FOLDERID_Programs, hLnk)) {
         Path_Append(hLnk, L"notepad3plus.lnk");
-        _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3plus", Path_Get(hInst));
+        smOk = _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3plus", Path_Get(hInst));
+        SHChangeNotify(SHCNE_CREATE, SHCNF_PATH, Path_Get(hLnk), NULL); // make it show in Start Menu now
     }
     if (Path_GetKnownFolder(&FOLDERID_Desktop, hLnk)) {
         Path_Append(hLnk, L"notepad3plus.lnk");
         _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3plus", Path_Get(hInst));
+        SHChangeNotify(SHCNE_CREATE, SHCNF_PATH, Path_Get(hLnk), NULL);
     }
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL); // refresh the shell
 
     WCHAR msg[1024];
     StringCchPrintfW(msg, COUNTOF(msg),
-        L"notepad3plus instalado em:\n%s\n\nAtalho 'notepad3plus' criado no Menu Iniciar e na Area de Trabalho.",
-        Path_Get(hInst));
-    MessageBoxW(Globals.hwndMain, msg, L"notepad3plus - Instalado", MB_OK | MB_ICONINFORMATION);
+        _Loc(L"notepad3plus instalado em:\n%s\n\nAtalho 'notepad3plus' criado no Menu Iniciar%s e na Area de Trabalho.",
+             L"notepad3plus installed at:\n%s\n\nA 'notepad3plus' shortcut was created in the Start Menu%s and on the Desktop."),
+        Path_Get(hInst), smOk ? L"" : _Loc(L" (falhou)", L" (failed)"));
+    MessageBoxW(Globals.hwndMain, msg, L"notepad3plus", MB_OK | MB_ICONINFORMATION);
 
     Path_Release(hLnk); Path_Release(hInst); Path_Release(hExe); Path_Release(hBase);
 }
@@ -5528,14 +5564,17 @@ static void _DeleteShortcutFrom(REFKNOWNFOLDERID rfid)
 void App_Uninstall(void)
 {
     if (MessageBoxW(Globals.hwndMain,
-            L"Desinstalar o notepad3plus?\n\nRemove os atalhos 'notepad3plus' e a copia "
-            L"instalada (em Program Files\\Notepad3plus ou na pasta do usuario).",
-            L"notepad3plus - Desinstalar", MB_YESNO | MB_ICONWARNING) != IDYES) {
+            _Loc(L"Desinstalar o notepad3plus?\n\nRemove os atalhos 'notepad3plus' e a copia "
+                 L"instalada (em Program Files\\Notepad3plus ou na pasta do usuario).",
+                 L"Uninstall notepad3plus?\n\nRemoves the 'notepad3plus' shortcuts and the "
+                 L"installed copy (in Program Files\\Notepad3plus or the user folder)."),
+            L"notepad3plus", MB_YESNO | MB_ICONWARNING) != IDYES) {
         return;
     }
 
     _DeleteShortcutFrom(&FOLDERID_Programs);
     _DeleteShortcutFrom(&FOLDERID_Desktop);
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL); // refresh the shell
 
     WCHAR self[MAX_PATH_EXPLICIT] = { L'\0' };
     GetModuleFileNameW(NULL, self, COUNTOF(self));
@@ -5566,8 +5605,10 @@ void App_Uninstall(void)
     }
 
     MessageBoxW(Globals.hwndMain,
-        (removed > 0) ? L"notepad3plus desinstalado. Os atalhos foram removidos."
-                      : L"Atalhos removidos. (Nenhuma copia instalada encontrada.)",
+        (removed > 0) ? _Loc(L"notepad3plus desinstalado. Os atalhos foram removidos.",
+                             L"notepad3plus uninstalled. The shortcuts were removed.")
+                      : _Loc(L"Atalhos removidos. (Nenhuma copia instalada encontrada.)",
+                             L"Shortcuts removed. (No installed copy found.)"),
         L"notepad3plus", MB_OK | MB_ICONINFORMATION);
 }
 

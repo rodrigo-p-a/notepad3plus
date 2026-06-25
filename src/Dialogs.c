@@ -1147,7 +1147,14 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam
 
         dpi = Scintilla_GetWindowDPI(hwnd);
 
-        SetDlgItemText(hwnd, IDC_VERSION, _W(_STRG(VERSION_FILEVERSION_LONG)));
+        {   // notepad3plus branding in the About box (keeps the original credits below)
+            WCHAR wchVer[256] = { L'\0' };
+            LPCWSTR const full = _W(_STRG(VERSION_FILEVERSION_LONG)); // "Notepad3 (x64) ..."
+            StringCchPrintf(wchVer, COUNTOF(wchVer), L"notepad3plus%s",
+                            (StrCmpNW(full, L"Notepad3", 8) == 0) ? (full + 8) : full);
+            SetDlgItemText(hwnd, IDC_VERSION, wchVer);
+        }
+        SetWindowText(hwnd, L"Sobre o notepad3plus / About notepad3plus");
         SetDlgItemText(hwnd, IDC_SCI_VERSION, VERSION_SCIVERSION L", " VERSION_LXIVERSION L", ID='" _W(_STRG(VERSION_COMMIT_ID)) L"'");
         SetDlgItemText(hwnd, IDC_COPYRIGHT, _W(VERSION_LEGALCOPYRIGHT));
         SetDlgItemText(hwnd, IDC_AUTHORNAME, _W(VERSION_AUTHORNAME));
@@ -1232,6 +1239,12 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam
                 SendDlgItemMessage(hwnd, IDC_RICHEDITABOUT, EM_SETBKGNDCOLOR, 0, (LPARAM)RGB(0x80, 0x80, 0x80));
             }
             SendDlgItemMessage(hwnd, IDC_RICHEDITABOUT, EM_STREAMIN, SF_RTF, (LPARAM)&editStreamIn);
+            // prepend the fork credit (keeps all the original credits below)
+            SendDlgItemMessage(hwnd, IDC_RICHEDITABOUT, EM_SETSEL, 0, 0);
+            SendDlgItemMessageW(hwnd, IDC_RICHEDITABOUT, EM_REPLACESEL, FALSE,
+                (LPARAM)L"notepad3plus (fork do Notepad3): abas + split + sessao.\r\n"
+                        L"Ideia/direcao: Rodrigo. Implementacao (co-autor): Claude Opus 4.8.\r\n"
+                        L"https://github.com/rodrigo-p-a/notepad3plus\r\n\r\n");
         }
         SendDlgItemMessage(hwnd, IDC_RICHEDITABOUT, EM_SHOWSCROLLBAR, SB_HORZ, (LPARAM)(dpi > USER_DEFAULT_SCREEN_DPI));
 
@@ -5167,11 +5180,11 @@ static bool _CreateShortcut(LPCWSTR target, LPCWSTR lnkPath, LPCWSTR desc, LPCWS
     return ok;
 }
 
-//  try to install (copy self) into <baseDir>\Notepad3pp\Notepad3.exe
+//  try to install (copy self) into <baseDir>\Notepad3plus\Notepad3.exe
 static bool _TryInstallTo(LPCWSTR self, const HPATHL hBaseDir, HPATHL hInstOut, HPATHL hExeOut)
 {
     Path_Reset(hInstOut, Path_Get(hBaseDir));
-    Path_Append(hInstOut, L"Notepad3pp");
+    Path_Append(hInstOut, L"Notepad3plus");
     HRESULT const hr = Path_CreateDirectoryEx(hInstOut);
     if (!(SUCCEEDED(hr) || (hr == HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS)))) {
         return false;
@@ -5324,7 +5337,7 @@ void App_CheckUpdateOnline(void)
     DWORD jlen = 0;
     if (!_HttpFetch(NP3PP_UPDATE_API, NULL, &json, &jlen) || !json) {
         MessageBoxW(Globals.hwndMain, L"Nao foi possivel verificar atualizacoes (sem internet?).",
-                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
         if (json) { FreeMem(json); }
         return;
     }
@@ -5333,7 +5346,7 @@ void App_CheckUpdateOnline(void)
     FreeMem(json);
     if (!hasAsset) {
         MessageBoxW(Globals.hwndMain, L"Nenhum download encontrado na ultima release.",
-                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -5353,7 +5366,7 @@ void App_CheckUpdateOnline(void)
     if (!dl) {
         Path_DeleteFile(hTmp); Path_Release(hTmp);
         MessageBoxW(Globals.hwndMain, L"Falha ao baixar a atualizacao.",
-                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -5365,12 +5378,12 @@ void App_CheckUpdateOnline(void)
     if (newVer <= curVer) {
         Path_DeleteFile(hTmp); Path_Release(hTmp);
         MessageBoxW(Globals.hwndMain, L"Voce ja esta na versao mais recente.",
-                    L"notepad3pp - Atualizar", MB_OK | MB_ICONINFORMATION);
+                    L"notepad3plus - Atualizar", MB_OK | MB_ICONINFORMATION);
         return;
     }
     if (MessageBoxW(Globals.hwndMain,
-            L"Uma versao mais nova foi baixada.\n\nAtualizar e reiniciar o notepad3pp agora?",
-            L"notepad3pp - Atualizar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
+            L"Uma versao mais nova foi baixada.\n\nAtualizar e reiniciar o notepad3plus agora?",
+            L"notepad3plus - Atualizar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
         Path_DeleteFile(hTmp); Path_Release(hTmp);
         return;
     }
@@ -5389,14 +5402,14 @@ void App_CheckUpdateOnline(void)
         MoveFileExW(oldp, self, MOVEFILE_REPLACE_EXISTING);
         Path_DeleteFile(hTmp); Path_Release(hTmp);
         MessageBoxW(Globals.hwndMain, L"Nao foi possivel substituir o executavel (permissao?).",
-                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+                    L"notepad3plus - Atualizar", MB_OK | MB_ICONWARNING);
     }
 }
 
 //=============================================================================
 //
 //  App_AutoUpdateInstalled() - if a newer build is launched from elsewhere,
-//  silently replace the previously "installed" copy (in Program Files\Notepad3pp
+//  silently replace the previously "installed" copy (in Program Files\Notepad3plus
 //  or the per-user equivalent) so the Start Menu shortcut always runs the latest.
 //
 void App_AutoUpdateInstalled(void)
@@ -5420,7 +5433,7 @@ void App_AutoUpdateInstalled(void)
         HPATHL hExe = Path_Allocate(NULL);
         if (Path_GetKnownFolder(bases[i], hExe)) {
             if (i == 1) { Path_Append(hExe, L"Programs"); }
-            Path_Append(hExe, L"Notepad3pp");
+            Path_Append(hExe, L"Notepad3plus");
             Path_Append(hExe, L"Notepad3.exe");
             if (Path_IsExistingFile(hExe) &&
                 (CompareStringOrdinal(self, -1, Path_Get(hExe), -1, TRUE) != CSTR_EQUAL)) {
@@ -5435,17 +5448,17 @@ void App_AutoUpdateInstalled(void)
 
 //=============================================================================
 //
-//  App_Install() - copy the running exe to Program Files\Notepad3pp (or a
-//  per-user equivalent if not elevated) and create "notepad3pp" shortcuts.
+//  App_Install() - copy the running exe to Program Files\Notepad3plus (or a
+//  per-user equivalent if not elevated) and create "notepad3plus" shortcuts.
 //
 void App_Install(void)
 {
     if (MessageBoxW(Globals.hwndMain,
-            L"Instalar o notepad3pp neste computador?\n\n"
-            L"Sera copiado para 'Program Files\\Notepad3pp' (ou para a pasta do "
+            L"Instalar o notepad3plus neste computador?\n\n"
+            L"Sera copiado para 'Program Files\\Notepad3plus' (ou para a pasta do "
             L"usuario, se nao houver permissao de administrador) e criara um atalho "
-            L"'notepad3pp' no Menu Iniciar e na Area de Trabalho.",
-            L"notepad3pp - Instalar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
+            L"'notepad3plus' no Menu Iniciar e na Area de Trabalho.",
+            L"notepad3plus - Instalar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
         return;
     }
 
@@ -5471,36 +5484,36 @@ void App_Install(void)
     if (!installed) {
         Path_Release(hInst); Path_Release(hExe); Path_Release(hBase);
         MessageBoxW(Globals.hwndMain, L"Nao foi possivel instalar (sem permissao de escrita).",
-                    L"notepad3pp", MB_OK | MB_ICONWARNING);
+                    L"notepad3plus", MB_OK | MB_ICONWARNING);
         return;
     }
 
-    // shortcuts (per-user Start Menu + Desktop) named "notepad3pp"
+    // shortcuts (per-user Start Menu + Desktop) named "notepad3plus"
     HPATHL hLnk = Path_Allocate(NULL);
     if (Path_GetKnownFolder(&FOLDERID_Programs, hLnk)) {
-        Path_Append(hLnk, L"notepad3pp.lnk");
-        _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3pp", Path_Get(hInst));
+        Path_Append(hLnk, L"notepad3plus.lnk");
+        _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3plus", Path_Get(hInst));
     }
     if (Path_GetKnownFolder(&FOLDERID_Desktop, hLnk)) {
-        Path_Append(hLnk, L"notepad3pp.lnk");
-        _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3pp", Path_Get(hInst));
+        Path_Append(hLnk, L"notepad3plus.lnk");
+        _CreateShortcut(Path_Get(hExe), Path_Get(hLnk), L"notepad3plus", Path_Get(hInst));
     }
 
     WCHAR msg[1024];
     StringCchPrintfW(msg, COUNTOF(msg),
-        L"notepad3pp instalado em:\n%s\n\nAtalho 'notepad3pp' criado no Menu Iniciar e na Area de Trabalho.",
+        L"notepad3plus instalado em:\n%s\n\nAtalho 'notepad3plus' criado no Menu Iniciar e na Area de Trabalho.",
         Path_Get(hInst));
-    MessageBoxW(Globals.hwndMain, msg, L"notepad3pp - Instalado", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(Globals.hwndMain, msg, L"notepad3plus - Instalado", MB_OK | MB_ICONINFORMATION);
 
     Path_Release(hLnk); Path_Release(hInst); Path_Release(hExe); Path_Release(hBase);
 }
 
-//  delete a "notepad3pp.lnk" shortcut from a known folder
+//  delete a "notepad3plus.lnk" shortcut from a known folder
 static void _DeleteShortcutFrom(REFKNOWNFOLDERID rfid)
 {
     HPATHL h = Path_Allocate(NULL);
     if (Path_GetKnownFolder(rfid, h)) {
-        Path_Append(h, L"notepad3pp.lnk");
+        Path_Append(h, L"notepad3plus.lnk");
         if (Path_IsExistingFile(h)) {
             Path_DeleteFile(h);
         }
@@ -5510,14 +5523,14 @@ static void _DeleteShortcutFrom(REFKNOWNFOLDERID rfid)
 
 //=============================================================================
 //
-//  App_Uninstall() - remove the installed copy and the "notepad3pp" shortcuts.
+//  App_Uninstall() - remove the installed copy and the "notepad3plus" shortcuts.
 //
 void App_Uninstall(void)
 {
     if (MessageBoxW(Globals.hwndMain,
-            L"Desinstalar o notepad3pp?\n\nRemove os atalhos 'notepad3pp' e a copia "
-            L"instalada (em Program Files\\Notepad3pp ou na pasta do usuario).",
-            L"notepad3pp - Desinstalar", MB_YESNO | MB_ICONWARNING) != IDYES) {
+            L"Desinstalar o notepad3plus?\n\nRemove os atalhos 'notepad3plus' e a copia "
+            L"instalada (em Program Files\\Notepad3plus ou na pasta do usuario).",
+            L"notepad3plus - Desinstalar", MB_YESNO | MB_ICONWARNING) != IDYES) {
         return;
     }
 
@@ -5534,7 +5547,7 @@ void App_Uninstall(void)
         HPATHL hDir = Path_Allocate(NULL);
         if (Path_GetKnownFolder(bases[i], hDir)) {
             if (i == 1) { Path_Append(hDir, L"Programs"); }
-            Path_Append(hDir, L"Notepad3pp");
+            Path_Append(hDir, L"Notepad3plus");
             HPATHL hExe = Path_Copy(hDir);
             Path_Append(hExe, L"Notepad3.exe");
             if (Path_IsExistingFile(hExe)) {
@@ -5553,9 +5566,9 @@ void App_Uninstall(void)
     }
 
     MessageBoxW(Globals.hwndMain,
-        (removed > 0) ? L"notepad3pp desinstalado. Os atalhos foram removidos."
+        (removed > 0) ? L"notepad3plus desinstalado. Os atalhos foram removidos."
                       : L"Atalhos removidos. (Nenhuma copia instalada encontrada.)",
-        L"notepad3pp", MB_OK | MB_ICONINFORMATION);
+        L"notepad3plus", MB_OK | MB_ICONINFORMATION);
 }
 
 //=============================================================================
@@ -6083,17 +6096,20 @@ void SetWindowTitle(HWND hwnd, const HPATHL pthFilePath, const TITLEPROPS_T prop
     }
 
 
+    // display name in the title bar (fork brand; APPNAME stays "Notepad3" for the
+    // INI section / mutex / single-instance to keep working)
+    #define NP3PLUS_DISPLAYNAME L"notepad3plus"
     WCHAR szAppName[SMALL_BUFFER] = { L'\0' };
     if (properties.bPasteBoard) {
-        FormatLngStringW(szAppName, COUNTOF(szAppName), IDS_MUI_APPTITLE_PASTEBOARD, _W(SAPPNAME));
+        FormatLngStringW(szAppName, COUNTOF(szAppName), IDS_MUI_APPTITLE_PASTEBOARD, NP3PLUS_DISPLAYNAME);
     }
     else if (properties.bIsElevated) {
         WCHAR szElevatedAppName[SMALL_BUFFER] = { L'\0' };
-        FormatLngStringW(szElevatedAppName, COUNTOF(szElevatedAppName), IDS_MUI_APPTITLE_ELEVATED, _W(SAPPNAME));
+        FormatLngStringW(szElevatedAppName, COUNTOF(szElevatedAppName), IDS_MUI_APPTITLE_ELEVATED, NP3PLUS_DISPLAYNAME);
         StringCchCopy(szAppName, COUNTOF(szAppName), szElevatedAppName);
     }
     else {
-        StringCchCopy(szAppName, COUNTOF(szAppName), _W(SAPPNAME));
+        StringCchCopy(szAppName, COUNTOF(szAppName), NP3PLUS_DISPLAYNAME);
     }
 
     if (StrIsEmpty(s_szUntitled)) {

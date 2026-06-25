@@ -1252,6 +1252,35 @@ void InvalidParameterHandler(const wchar_t* expression,
 
 //=============================================================================
 //
+//  _InsertToolsMenu() - add a "Ferramentas / Tools" menu to the menu bar at
+//  runtime (the bar comes from the language DLL, so we inject it here) with the
+//  notepad3plus extras: install/update/uninstall, split and reopen-closed-tab.
+//
+static void _InsertToolsMenu(HMENU hMenuBar)
+{
+    if (!hMenuBar) {
+        return;
+    }
+    HMENU const hTools = CreatePopupMenu();
+    if (!hTools) {
+        return;
+    }
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_INSTALL,      L"Instalar notepad3plus / Install");
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_CHECKUPDATE,  L"Atualizar (GitHub) / Update");
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_UNINSTALL,    L"Desinstalar / Uninstall");
+    AppendMenuW(hTools, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hTools, MF_STRING, IDM_VIEW_SPLIT_VERT,   L"Dividir editor -> (lado a lado) / Split right");
+    AppendMenuW(hTools, MF_STRING, IDM_VIEW_SPLIT_HORZ,   L"Dividir editor v (empilhado) / Split down");
+    AppendMenuW(hTools, MF_STRING, IDM_VIEW_CLOSEPANE,    L"Fechar painel / Close pane");
+    AppendMenuW(hTools, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hTools, MF_STRING, IDM_FILE_REOPENCLOSED, L"Reabrir aba fechada / Reopen closed tab");
+    int const cnt = GetMenuItemCount(hMenuBar);
+    UINT const pos = (cnt > 0) ? (UINT)(cnt - 1) : 0; // before "Help"
+    InsertMenuW(hMenuBar, pos, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hTools, L"Ferramentas / Tools");
+}
+
+//=============================================================================
+//
 //  WinMain()
 //
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
@@ -1508,6 +1537,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         InsertLanguageMenu(Globals.hMainMenu);
     #endif
     Style_InsertThemesMenu(Globals.hMainMenu);
+    _InsertToolsMenu(Globals.hMainMenu);
 
     if (!InitApplication(Globals.hInstance)) {
         _CleanUpResources(NULL, false);
@@ -12611,11 +12641,8 @@ LRESULT MsgNotify(HWND hwnd, WPARAM wParam, LPARAM lParam)
             AppendMenu(hmPop, MF_STRING, IDM_VIEW_SPLIT_HORZ, L"Dividir ↓ (empilhado) / Split Down");
             AppendMenu(hmPop, MF_STRING | (s_paneCount > 1 ? 0 : MF_GRAYED), IDM_VIEW_CLOSEPANE, L"Fechar painel / Close Pane");
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
-            AppendMenu(hmPop, MF_STRING, IDM_FILE_INSTALL, L"Instalar (notepad3pp) / Install");
-            AppendMenu(hmPop, MF_STRING, IDM_FILE_CHECKUPDATE, L"Atualizar (baixar do GitHub) / Update");
-            AppendMenu(hmPop, MF_STRING, IDM_FILE_UNINSTALL, L"Desinstalar / Uninstall");
-            AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
             AppendMenu(hmPop, MF_STRING, IDM_FILE_WIPEALL, L"Apagar tudo e fechar editores / Wipe all");
+            // (Instalar/Atualizar/Desinstalar agora no menu "Ferramentas")
             TrackPopupMenu(hmPop, TPM_LEFTALIGN | TPM_TOPALIGN, pt.x, pt.y, 0, Globals.hwndMain, NULL);
             DestroyMenu(hmPop);
             result = TRUE;

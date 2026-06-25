@@ -6,6 +6,20 @@ Cada alteração feita ao longo do tempo é registrada aqui.
 
 ## [Não lançado]
 
+### 2026-06-25 (marca + menu Ferramentas)
+
+#### Adicionado
+- **Menu "Ferramentas / Tools"** na barra de menus (injetado em runtime) com
+  Instalar / Atualizar / Desinstalar, dividir editor e reabrir aba fechada.
+
+#### Alterado
+- **Marca "notepad3plus"** no título da janela e na janela "Sobre" (nome e versão),
+  com crédito do fork no topo dos créditos — preservando os créditos originais
+  (Rizonesoft, Florian Balmer, colaboradores). O `APPNAME` interno segue "Notepad3"
+  para manter o `Notepad3.ini`/mutex compatíveis.
+- Instalar/Atualizar/Desinstalar saíram do menu de contexto da aba (agora em
+  Ferramentas); o pacote de instalação chama-se **notepad3plus** (pasta/atalho).
+
 ### 2026-06-25 (atualização)
 
 #### Adicionado

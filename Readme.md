@@ -22,7 +22,8 @@ Baixe o **[Notepad3Plus-x64.exe](https://github.com/rodrigo-p-a/notepad3plus/rel
 - **Arrastar e grudar** abas entre painéis (dock estilo VS).
 - **Lembra sozinho**: ao fechar, guarda tudo (até não-salvos) e reabre igual.
 - **Reabrir aba fechada**, **renomear aba sem salvar**, várias abas em branco.
-- **Instalar/Desinstalar** pelo menu (atalho *notepad3pp*) + **auto-atualização**.
+- **Instalar/Desinstalar** pelo menu (atalho *notepad3pp*) + **Atualizar** baixando
+  a última versão direto do GitHub (e auto-update local).
 - **1 exe portátil**, nativo, ~50 MB de RAM, sem dependências.
 
 > Ações no **clique direito da aba**. Atalhos: `Ctrl+N` nova aba · `Ctrl+PgUp/PgDn`

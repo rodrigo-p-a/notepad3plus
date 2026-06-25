@@ -83,6 +83,7 @@ void DialogFileBrowse(HWND hwnd);
 void App_Install(void);
 void App_Uninstall(void);
 void App_AutoUpdateInstalled(void);
+void App_CheckUpdateOnline(void);
 void DialogGrepWin(HWND hwnd, LPCWSTR searchPattern);
 void DialogAdminExe(HWND hwnd,bool);
 

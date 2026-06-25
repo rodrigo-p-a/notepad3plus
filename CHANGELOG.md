@@ -18,6 +18,9 @@ Cada alteração feita ao longo do tempo é registrada aqui.
 - **Auto-atualização:** ao abrir uma versão mais nova (ex.: baixada), o app
   substitui sozinho a cópia instalada (compara a versão do binário), mantendo o
   atalho sempre apontando para a versão mais recente.
+- **Atualizar online (menu):** comando "Atualizar (baixar do GitHub)" que consulta
+  a última release no GitHub (via WinHTTP), baixa o binário, compara a versão e,
+  se for mais novo, substitui o executável e reinicia (a sessão é restaurada).
 
 ### 2026-06-25
 

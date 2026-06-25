@@ -895,6 +895,7 @@
 #define IDM_FILE_REOPENCLOSED           43809
 #define IDM_FILE_INSTALL                43810
 #define IDM_FILE_UNINSTALL              43811
+#define IDM_FILE_CHECKUPDATE            43812
 
 
 #define IDS_ENC_ANSI                    61000

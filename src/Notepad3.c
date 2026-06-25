@@ -7748,6 +7748,10 @@ static bool _HandleFileCommands(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lPar
         App_Uninstall();
         break;
 
+    case IDM_FILE_CHECKUPDATE:
+        App_CheckUpdateOnline();
+        break;
+
 
     case IDM_FILE_REVERT:
         if (!FileWatching.MonitoringLog) {
@@ -12608,6 +12612,7 @@ LRESULT MsgNotify(HWND hwnd, WPARAM wParam, LPARAM lParam)
             AppendMenu(hmPop, MF_STRING | (s_paneCount > 1 ? 0 : MF_GRAYED), IDM_VIEW_CLOSEPANE, L"Fechar painel / Close Pane");
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
             AppendMenu(hmPop, MF_STRING, IDM_FILE_INSTALL, L"Instalar (notepad3pp) / Install");
+            AppendMenu(hmPop, MF_STRING, IDM_FILE_CHECKUPDATE, L"Atualizar (baixar do GitHub) / Update");
             AppendMenu(hmPop, MF_STRING, IDM_FILE_UNINSTALL, L"Desinstalar / Uninstall");
             AppendMenu(hmPop, MF_SEPARATOR, 0, NULL);
             AppendMenu(hmPop, MF_STRING, IDM_FILE_WIPEALL, L"Apagar tudo e fechar editores / Wipe all");

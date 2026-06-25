@@ -21,8 +21,10 @@
 #include <shlwapi.h>
 #include <commdlg.h>
 #include <shlobj.h>
+#include <winhttp.h>
 
 #pragma comment(lib, "version.lib") // App_AutoUpdateInstalled() version query
+#pragma comment(lib, "winhttp.lib") // App_CheckUpdateOnline() download
 
 #include <string.h>
 
@@ -5205,6 +5207,194 @@ static ULONGLONG _FileVersion(LPCWSTR path)
 
 //=============================================================================
 //
+//  Online update: fetch the latest release from GitHub and self-replace.
+//
+#define NP3PP_UPDATE_API  L"https://api.github.com/repos/rodrigo-p-a/notepad3plus/releases/latest"
+
+//  HTTP GET a URL via WinHTTP (follows redirects). If hFile != NULL the body is
+//  written to it; otherwise it is returned as a malloc'd buffer (*memOut/*memLen).
+static bool _HttpFetch(LPCWSTR url, HANDLE hFile, char** memOut, DWORD* memLen)
+{
+    if (memOut) { *memOut = NULL; }
+    if (memLen) { *memLen = 0; }
+
+    URL_COMPONENTS uc = { 0 };
+    uc.dwStructSize = sizeof(uc);
+    WCHAR host[256] = { 0 };
+    WCHAR path[2048] = { 0 };
+    uc.lpszHostName = host;   uc.dwHostNameLength = COUNTOF(host);
+    uc.lpszUrlPath  = path;   uc.dwUrlPathLength  = COUNTOF(path);
+    if (!WinHttpCrackUrl(url, 0, 0, &uc)) {
+        return false;
+    }
+
+    bool ok = false;
+    HINTERNET hSess = WinHttpOpen(L"notepad3plus-updater/1.0",
+                                  WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSess) {
+        return false;
+    }
+    HINTERNET hConn = WinHttpConnect(hSess, host, uc.nPort, 0);
+    if (hConn) {
+        DWORD const flags = (uc.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
+        HINTERNET hReq = WinHttpOpenRequest(hConn, L"GET", path, NULL, WINHTTP_NO_REFERER,
+                                            WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+        if (hReq) {
+            WinHttpAddRequestHeaders(hReq, L"Accept: application/vnd.github+json\r\n",
+                                     (DWORD)-1, WINHTTP_ADDREQ_FLAG_ADD);
+            if (WinHttpSendRequest(hReq, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                   WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                WinHttpReceiveResponse(hReq, NULL)) {
+                size_t cap = 0, used = 0;
+                char* mem = NULL;
+                DWORD avail = 0;
+                ok = true;
+                do {
+                    avail = 0;
+                    if (!WinHttpQueryDataAvailable(hReq, &avail)) { ok = false; break; }
+                    if (avail == 0) { break; }
+                    char* chunk = (char*)AllocMem(avail, HEAP_ZERO_MEMORY);
+                    if (!chunk) { ok = false; break; }
+                    DWORD read = 0;
+                    if (!WinHttpReadData(hReq, chunk, avail, &read) || (read == 0)) {
+                        FreeMem(chunk); break;
+                    }
+                    if (hFile) {
+                        DWORD wr = 0;
+                        WriteFile(hFile, chunk, read, &wr, NULL);
+                    } else {
+                        if (used + read + 1 > cap) {
+                            size_t ncap = (cap ? cap * 2 : 65536);
+                            while (ncap < used + read + 1) { ncap *= 2; }
+                            char* nm = (char*)AllocMem(ncap, HEAP_ZERO_MEMORY);
+                            if (!nm) { FreeMem(chunk); ok = false; break; }
+                            if (mem) { CopyMemory(nm, mem, used); FreeMem(mem); }
+                            mem = nm; cap = ncap;
+                        }
+                        CopyMemory(mem + used, chunk, read);
+                        used += read;
+                    }
+                    FreeMem(chunk);
+                } while (avail > 0);
+                if (ok && memOut) { *memOut = mem; *memLen = (DWORD)used; }
+                else if (mem) { FreeMem(mem); }
+            }
+            WinHttpCloseHandle(hReq);
+        }
+        WinHttpCloseHandle(hConn);
+    }
+    WinHttpCloseHandle(hSess);
+    return ok;
+}
+
+//  pull the asset download URL for Notepad3Plus-x64.exe out of the release JSON
+static bool _ParseAssetUrl(const char* json, WCHAR* outUrl, int cch)
+{
+    const char* p = json;
+    const char* const KEY = "\"browser_download_url\":\"";
+    while ((p = strstr(p, KEY)) != NULL) {
+        p += strlen(KEY);
+        const char* end = strchr(p, '"');
+        if (!end) { break; }
+        size_t const n = (size_t)(end - p);
+        if ((n < (size_t)cch) && (n > 4)) {
+            char tmp[2048];
+            if (n < COUNTOF(tmp)) {
+                memcpy(tmp, p, n); tmp[n] = '\0';
+                if (strstr(tmp, "Notepad3Plus-x64.exe")) {
+                    MultiByteToWideChar(CP_UTF8, 0, tmp, -1, outUrl, cch);
+                    return true;
+                }
+            }
+        }
+        p = end;
+    }
+    return false;
+}
+
+//=============================================================================
+//
+//  App_CheckUpdateOnline() - menu "Atualizar": check GitHub for a newer build,
+//  download it and self-replace + relaunch.
+//
+void App_CheckUpdateOnline(void)
+{
+    char* json = NULL;
+    DWORD jlen = 0;
+    if (!_HttpFetch(NP3PP_UPDATE_API, NULL, &json, &jlen) || !json) {
+        MessageBoxW(Globals.hwndMain, L"Nao foi possivel verificar atualizacoes (sem internet?).",
+                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+        if (json) { FreeMem(json); }
+        return;
+    }
+    WCHAR url[2048] = { 0 };
+    bool const hasAsset = _ParseAssetUrl(json, url, COUNTOF(url));
+    FreeMem(json);
+    if (!hasAsset) {
+        MessageBoxW(Globals.hwndMain, L"Nenhum download encontrado na ultima release.",
+                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    // download to a temp file
+    HPATHL hTmp = Path_Allocate(NULL);
+    Path_GetKnownFolder(&FOLDERID_LocalAppData, hTmp);
+    Path_Append(hTmp, L"Rizonesoft");
+    Path_Append(hTmp, L"Notepad3");
+    Path_CreateDirectoryEx(hTmp);
+    Path_Append(hTmp, L"update.download");
+    HANDLE hf = Path_CreateFile(hTmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    bool dl = false;
+    if (hf != INVALID_HANDLE_VALUE) {
+        dl = _HttpFetch(url, hf, NULL, NULL);
+        CloseHandle(hf);
+    }
+    if (!dl) {
+        Path_DeleteFile(hTmp); Path_Release(hTmp);
+        MessageBoxW(Globals.hwndMain, L"Falha ao baixar a atualizacao.",
+                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    WCHAR self[MAX_PATH_EXPLICIT] = { 0 };
+    GetModuleFileNameW(NULL, self, COUNTOF(self));
+    ULONGLONG const newVer = _FileVersion(Path_Get(hTmp));
+    ULONGLONG const curVer = _FileVersion(self);
+
+    if (newVer <= curVer) {
+        Path_DeleteFile(hTmp); Path_Release(hTmp);
+        MessageBoxW(Globals.hwndMain, L"Voce ja esta na versao mais recente.",
+                    L"notepad3pp - Atualizar", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    if (MessageBoxW(Globals.hwndMain,
+            L"Uma versao mais nova foi baixada.\n\nAtualizar e reiniciar o notepad3pp agora?",
+            L"notepad3pp - Atualizar", MB_YESNO | MB_ICONQUESTION) != IDYES) {
+        Path_DeleteFile(hTmp); Path_Release(hTmp);
+        return;
+    }
+
+    // self-replace: rename running exe to .old, put the new one in its place, relaunch
+    WCHAR oldp[MAX_PATH_EXPLICIT] = { 0 };
+    StringCchPrintfW(oldp, COUNTOF(oldp), L"%s.old", self);
+    DeleteFileW(oldp);
+    if (MoveFileExW(self, oldp, MOVEFILE_REPLACE_EXISTING) &&
+        CopyFileW(Path_Get(hTmp), self, FALSE)) {
+        Path_DeleteFile(hTmp); Path_Release(hTmp);
+        ShellExecuteW(NULL, L"open", self, NULL, NULL, SW_SHOWNORMAL);
+        PostMessage(Globals.hwndMain, WM_CLOSE, 0, 0); // session is remembered & restored
+    } else {
+        // rollback
+        MoveFileExW(oldp, self, MOVEFILE_REPLACE_EXISTING);
+        Path_DeleteFile(hTmp); Path_Release(hTmp);
+        MessageBoxW(Globals.hwndMain, L"Nao foi possivel substituir o executavel (permissao?).",
+                    L"notepad3pp - Atualizar", MB_OK | MB_ICONWARNING);
+    }
+}
+
+//=============================================================================
+//
 //  App_AutoUpdateInstalled() - if a newer build is launched from elsewhere,
 //  silently replace the previously "installed" copy (in Program Files\Notepad3pp
 //  or the per-user equivalent) so the Start Menu shortcut always runs the latest.
@@ -5213,6 +5403,14 @@ void App_AutoUpdateInstalled(void)
 {
     WCHAR self[MAX_PATH_EXPLICIT] = { L'\0' };
     GetModuleFileNameW(NULL, self, COUNTOF(self));
+
+    // clean up a leftover "<self>.old" from a previous online self-update
+    {
+        WCHAR oldp[MAX_PATH_EXPLICIT] = { L'\0' };
+        StringCchPrintfW(oldp, COUNTOF(oldp), L"%s.old", self);
+        DeleteFileW(oldp);
+    }
+
     ULONGLONG const selfVer = _FileVersion(self);
     if (selfVer == 0) {
         return;

@@ -9,17 +9,14 @@ set NP3_BUILD_VER=%SCRIPT_DIR%..\Versions\build.txt
 :: --------------------------------------------------------------------------------------------------------------------
 
 set YY=00
-set MM=00
-set DD=00
+set MDD=000
 
 call :GETDATE
-set "LZ=%MM:~0,1%"
-if [%LZ%]==[0] set "MM=%MM:~1,1%"
 
 set BUILD=0
 call :GETBUILD "%~1"
 
-set VERSHOULD=7.%YY%.%MM%%DD%.%BUILD%
+set VERSHOULD=7.%YY%.%MDD%.%BUILD%
 
 :: --------------------------------------------------------------------------------------------------------------------
 
@@ -59,17 +56,12 @@ goto:EOF
 :: --------------------------------------------------------------------------------------------------------------------
 
 :GETDATE
-for /f "tokens=2 delims==" %%a in ('
-    wmic OS Get localdatetime /value
-') do set "dt=%%a"
-set "YY=%dt:~2,2%" & set "YYYY=%dt:~0,4%" & set "MM=%dt:~4,2%" & set "DD=%dt:~6,2%"
-set "HH=%dt:~8,2%" & set "Min=%dt:~10,2%" & set "Sec=%dt:~12,2%"
-::set "datestamp=%YYYY%%MM%%DD%" & set "timestamp=%HH%%Min%%Sec%"
-::set "fullstamp=%YYYY%-%MM%-%DD%_%HH%-%Min%-%Sec%"
-::echo src: "%dt%"
-::echo datestamp: "%datestamp%"
-::echo timestamp: "%timestamp%"
-::echo fullstamp: "%fullstamp%"
+:: Mirror the build's version stamp (Generate version step): 7.<yy>.<Mdd>.<build>.
+:: Use PowerShell, not wmic - wmic is absent on Windows 11 24H2 / Server 2025
+:: (the windows-2025 CI image), which made both this and :GETFILEVER return empty
+:: and the version test always fail.
+for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "Get-Date -Format yy"`) do set "YY=%%a"
+for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "Get-Date -Format Mdd"`) do set "MDD=%%a"
 goto:EOF
 :: --------------------------------------------------------------------------------------------------------------------
 
@@ -78,10 +70,10 @@ set "file=%~1"
 if not defined file goto:EOF
 if not exist "%file%" goto:EOF
 set "FILEVER="
-for /F "tokens=2 delims==" %%a in ('
-    wmic datafile where name^="%file:\=\\%" Get Version /value 
-') do set "FILEVER=%%a"
-::echo %file% = %FILEVER% 
+:: PowerShell replacement for `wmic datafile ... Get Version` (wmic removed on
+:: Windows 11 24H2 / Server 2025). Compose the numeric file version a.b.c.d.
+for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "$v=[System.Diagnostics.FileVersionInfo]::GetVersionInfo('%file%'); '{0}.{1}.{2}.{3}' -f $v.FileMajorPart,$v.FileMinorPart,$v.FileBuildPart,$v.FilePrivatePart"`) do set "FILEVER=%%a"
+::echo %file% = %FILEVER%
 goto:EOF
 :: --------------------------------------------------------------------------------------------------------------------
 

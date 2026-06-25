@@ -14,11 +14,15 @@ $ErrorActionPreference = "Stop"
 
 $root   = Split-Path -Parent $PSScriptRoot
 $outDir = Join-Path $root ("Bin\{0}_{1}_{2}" -f $Config, $Platform, $Toolset)
-$np3    = Join-Path $outDir "Notepad3.exe"
+$built  = Join-Path $outDir "Notepad3.exe"
+$np3    = Join-Path $outDir "NotePad3Plus.exe"   # distributable name
 $mp     = Join-Path $outDir "minipath.exe"
 
-if (-not (Test-Path $np3)) { throw "Notepad3.exe nao encontrado: $np3" }
-if (-not (Test-Path $mp))  { throw "minipath.exe nao encontrado: $mp" }
+if (-not (Test-Path $built)) { throw "Notepad3.exe nao encontrado: $built" }
+if (-not (Test-Path $mp))    { throw "minipath.exe nao encontrado: $mp" }
+
+# the build outputs Notepad3.exe; rename a copy to NotePad3Plus.exe and embed into it
+Copy-Item $built $np3 -Force
 
 Add-Type @"
 using System;

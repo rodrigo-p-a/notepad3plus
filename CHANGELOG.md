@@ -8,6 +8,11 @@ Cada alteração feita ao longo do tempo é registrada aqui.
 
 ### 2026-06-25 (marca + menu Ferramentas)
 
+#### Alterado (nome do executável)
+- O executável distribuído agora se chama **NotePad3Plus.exe** (gerado pelo
+  `embed_minipath.ps1`); install/uninstall/auto-update usam esse nome. O INI
+  portátil passa a ser `NotePad3Plus.ini` (a sessão continua em `%LOCALAPPDATA%`).
+
 #### Adicionado
 - **Menu "Ferramentas / Tools"** na barra de menus (injetado em runtime) com
   Instalar / Atualizar / Desinstalar, dividir editor e reabrir aba fechada.

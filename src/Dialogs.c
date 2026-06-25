@@ -5190,7 +5190,7 @@ static bool _TryInstallTo(LPCWSTR self, const HPATHL hBaseDir, HPATHL hInstOut, 
         return false;
     }
     Path_Reset(hExeOut, Path_Get(hInstOut));
-    Path_Append(hExeOut, L"Notepad3.exe");
+    Path_Append(hExeOut, L"NotePad3Plus.exe");
     return (CopyFileW(self, Path_Get(hExeOut), FALSE) != 0);
 }
 
@@ -5434,7 +5434,7 @@ void App_AutoUpdateInstalled(void)
         if (Path_GetKnownFolder(bases[i], hExe)) {
             if (i == 1) { Path_Append(hExe, L"Programs"); }
             Path_Append(hExe, L"Notepad3plus");
-            Path_Append(hExe, L"Notepad3.exe");
+            Path_Append(hExe, L"NotePad3Plus.exe");
             if (Path_IsExistingFile(hExe) &&
                 (CompareStringOrdinal(self, -1, Path_Get(hExe), -1, TRUE) != CSTR_EQUAL)) {
                 if (selfVer > _FileVersion(Path_Get(hExe))) {
@@ -5549,7 +5549,7 @@ void App_Uninstall(void)
             if (i == 1) { Path_Append(hDir, L"Programs"); }
             Path_Append(hDir, L"Notepad3plus");
             HPATHL hExe = Path_Copy(hDir);
-            Path_Append(hExe, L"Notepad3.exe");
+            Path_Append(hExe, L"NotePad3Plus.exe");
             if (Path_IsExistingFile(hExe)) {
                 // if we're running the installed copy, delay-delete on reboot
                 if (CompareStringOrdinal(self, -1, Path_Get(hExe), -1, TRUE) == CSTR_EQUAL) {

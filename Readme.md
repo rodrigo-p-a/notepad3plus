@@ -48,7 +48,8 @@ powershell -ExecutionPolicy Bypass -File Version.ps1
 msbuild Notepad3.sln /m /p:Configuration=Release /p:Platform=x64
 powershell -ExecutionPolicy Bypass -File Build\embed_minipath.ps1
 ```
-Saída / output: `Bin\Release_x64_v143\Notepad3.exe`.
+Saída / output: `Bin\Release_x64_v143\NotePad3Plus.exe` (o `embed_minipath.ps1`
+gera esse nome a partir do `Notepad3.exe` compilado).
 
 ## 📄 Créditos / Credits
 

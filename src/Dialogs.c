@@ -5170,6 +5170,84 @@ static bool _ExtractEmbeddedExe(LPCWSTR resName, LPCWSTR fileName, HPATHL hOut)
 
 //=============================================================================
 //
+//  _ExtractResourceToFile() - write an embedded RCDATA resource to a file,
+//  skipping the write if a same-size file is already there.
+//
+static bool _ExtractResourceToFile(LPCWSTR resName, const HPATHL hDestFile)
+{
+    HRSRC const hRes = FindResourceW(Globals.hInstance, resName, RT_RCDATA);
+    if (!hRes) {
+        return false; // not embedded (e.g. dev build)
+    }
+    DWORD const sz = SizeofResource(Globals.hInstance, hRes);
+    HGLOBAL const hg = LoadResource(Globals.hInstance, hRes);
+    const void* const data = hg ? LockResource(hg) : NULL;
+    if (!data || (sz == 0)) {
+        return false;
+    }
+    if (Path_IsExistingFile(hDestFile)) {
+        HANDLE const hChk = Path_CreateFile(hDestFile, GENERIC_READ, FILE_SHARE_READ, NULL,
+                                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hChk != INVALID_HANDLE_VALUE) {
+            LARGE_INTEGER cur = { 0 };
+            GetFileSizeEx(hChk, &cur);
+            CloseHandle(hChk);
+            if (cur.QuadPart == (LONGLONG)sz) {
+                return true; // already extracted, same size
+            }
+        }
+    }
+    HANDLE const h = Path_CreateFile(hDestFile, GENERIC_WRITE, 0, NULL,
+                                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    DWORD written = 0;
+    BOOL const ok = WriteFile(h, data, sz, &written, NULL);
+    CloseHandle(h);
+    return (ok && (written == sz));
+}
+
+//=============================================================================
+//
+//  _ProvisionLanguagePacks() - the single-exe distribution carries no lng\
+//  folder, so the bundled Portuguese packs (pt-BR/pt-PT) are embedded as RCDATA.
+//  Extract them into <appDir>\lng so the installed copy shows the native UI
+//  instead of warning that the preferred language is not available. Other
+//  locales fall back to the built-in English silently.
+//
+static void _ProvisionLanguagePacks(const HPATHL hAppDir)
+{
+    static const struct {
+        LPCWSTR res;
+        LPCWSTR sub;  // locale subfolder, or NULL for the lng root
+        LPCWSTR file;
+    } items[] = {
+        { L"LNGB_NP3",      NULL,    L"np3lng.dll" },
+        { L"LNGB_MP",       NULL,    L"mplng.dll" },
+        { L"LNG_NP3_PT_BR", L"pt-BR", L"np3lng.dll.mui" },
+        { L"LNG_MP_PT_BR",  L"pt-BR", L"mplng.dll.mui" },
+        { L"LNG_NP3_PT_PT", L"pt-PT", L"np3lng.dll.mui" },
+        { L"LNG_MP_PT_PT",  L"pt-PT", L"mplng.dll.mui" },
+    };
+    HPATHL hLngRoot = Path_Copy(hAppDir);
+    Path_Append(hLngRoot, L"lng");
+    Path_CreateDirectoryEx(hLngRoot);
+    for (int i = 0; i < (int)COUNTOF(items); ++i) {
+        HPATHL hDest = Path_Copy(hLngRoot);
+        if (items[i].sub) {
+            Path_Append(hDest, items[i].sub);
+            Path_CreateDirectoryEx(hDest);
+        }
+        Path_Append(hDest, items[i].file);
+        _ExtractResourceToFile(items[i].res, hDest);
+        Path_Release(hDest);
+    }
+    Path_Release(hLngRoot);
+}
+
+//=============================================================================
+//
 //  _CreateShortcut() - create a .lnk pointing to target (COM IShellLink)
 //
 static bool _CreateShortcut(LPCWSTR target, LPCWSTR lnkPath, LPCWSTR desc, LPCWSTR workdir)
@@ -5518,6 +5596,10 @@ void App_Install(void)
                     L"notepad3plus", MB_OK | MB_ICONWARNING);
         return;
     }
+
+    // bundle the Portuguese language packs next to the installed exe so the
+    // installed copy shows the native UI (single-exe carries no lng\ folder)
+    _ProvisionLanguagePacks(hInst);
 
     // shortcuts (per-user Start Menu + Desktop) named "notepad3plus"
     bool smOk = false;

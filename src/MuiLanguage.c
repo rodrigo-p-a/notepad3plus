@@ -457,11 +457,11 @@ unsigned LoadLanguageResources(LPCWSTR pLocaleName) {
         MUI_LanguageDLLs[iInternalLngIndex].bIsActive = true;
         iLngIndex = iInternalLngIndex;
 
-        InfoBoxLng(MB_ICONWARNING, Constants.SuppressKey.MsgPrefLanguageNotAvailable, IDS_WARN_PREF_LNG_NOT_AVAIL, pLocaleName);
-        int const noMsg = IniFileGetLong(Paths.IniFile, Constants.SectionSuppressedMessages, Constants.SuppressKey.MsgPrefLanguageNotAvailable, 0);
-        if (noMsg && Globals.bCanSaveIniFile) {
-            IniFileSetString(Paths.IniFile, Constants.Settings2_Section, L"PreferredLanguageLocaleName", MUI_LanguageDLLs[iInternalLngIndex].LocaleName);
-        }
+        // notepad3plus: the single-exe distribution ships only the built-in
+        // English plus the bundled Portuguese packs (extracted on install).
+        // A missing language pack must degrade silently to English instead of
+        // popping a modal warning on every launch. (Upstream showed an InfoBox
+        // here; we drop it and just fall back to the internal English base.)
     }
 
     // ===  update language dependent items  ===

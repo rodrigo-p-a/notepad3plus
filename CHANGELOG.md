@@ -6,6 +6,23 @@ Cada alteração feita ao longo do tempo é registrada aqui.
 
 ## [Não lançado]
 
+### 2026-06-25 (idioma após instalar)
+
+#### Corrigido
+- **"Linguagem não disponível" ao executar do Menu Iniciar:** a distribuição em
+  executável único não levava a pasta `lng\` (DLLs de idioma MUI), então a cópia
+  instalada não encontrava o pacote do idioma preferido (ex.: pt-BR) e mostrava um
+  aviso modal a cada início. Agora:
+  - os **pacotes de idioma em português (pt-BR e pt-PT)** vêm **embarcados no exe**
+    (como os recursos do minipath) e o **instalador os extrai** para `lng\` ao lado
+    do executável instalado (`_ProvisionLanguagePacks` em `Dialogs.c`,
+    `embed_minipath.ps1` embarca `LNG_*`);
+  - quando um pacote de idioma **não** está disponível, o app **cai
+    silenciosamente** no inglês interno em vez de abrir um aviso modal
+    (`MuiLanguage.c`).
+  - Resultado: instalar e abrir pelo Menu Iniciar mostra a interface em português,
+    sem erro. Locales sem pacote embarcado usam o inglês interno (sem aviso).
+
 ### 2026-06-25 (idioma do menu + Menu Iniciar)
 
 #### Alterado

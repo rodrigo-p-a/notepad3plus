@@ -8,6 +8,7 @@
 SendMode("Input")
 SetWorkingDir(A_ScriptDir)
 CoordMode("Pixel", "Screen")
+SetTitleMatchMode(2)   ; substring match (a window's title may contain WinTitle anywhere)
 ; =============================================================================
 
 ; All globals declared and initialised up front so functions always find them set.
@@ -100,19 +101,27 @@ CHECK_ABOUT_BOX() {
     ; Open Help -> About... via its keyboard shortcut (Shift+F1):
     Send("+{F1}")
 
-    if !WinWait("About " . v_NP3Name, , 3) {
+    ; Match the About box by its dialog class (#32770) owned by this process, NOT
+    ; by caption text: the caption is now branded and localized ("About notepad3plus"
+    ; / "Sobre o notepad3plus"), so a fixed "About Notepad3" string never matches.
+    local aboutWin := "ahk_class #32770 ahk_pid " . v_Notepad3_PID
+    if !WinWait(aboutWin, , 5) {
         stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box is not displayed!")
         v_ExitCode := 4
         Cleanup()
         ExitApp(v_ExitCode)
     }
-    WinActivate("About " . v_NP3Name)
-    ControlClick("OK", "About " . v_NP3Name)
-    if !WinWaitClose("About " . v_NP3Name, , 2) {
-        stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box can not be closed!")
-        v_ExitCode := 5
-        Cleanup()
-        ExitApp(v_ExitCode)
+    stdout.WriteLine("About Box Title is: " . WinGetTitle(aboutWin))
+    WinActivate(aboutWin)
+    Send("{Enter}")   ; press the default button (OK) - independent of its localized label
+    if !WinWaitClose(aboutWin, , 2) {
+        WinClose(aboutWin)
+        if !WinWaitClose(aboutWin, , 2) {
+            stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box can not be closed!")
+            v_ExitCode := 5
+            Cleanup()
+            ExitApp(v_ExitCode)
+        }
     }
 }
 ; =============================================================================

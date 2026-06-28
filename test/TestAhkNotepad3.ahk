@@ -28,6 +28,20 @@ try {
     ExitApp(1)
 }
 
+; Safety net: an uncaught exception (e.g. a WinActivate/PostMessage TargetError on
+; a window that briefly does not match) would otherwise pop a MODAL error dialog
+; and HANG the headless CI runner forever. Turn any uncaught error into a clean,
+; logged, non-zero exit instead.
+OnError(_OnUncaughtError)
+_OnUncaughtError(err, mode) {
+    global stdout, v_ExitCode
+    try stdout.WriteLine("*** ERROR (uncaught): " . err.Message)
+    v_ExitCode := 90
+    try Cleanup()
+    ExitApp(v_ExitCode)
+    return true   ; suppress the default (blocking) error dialog
+}
+
 ; =============================================================================
 
 stdout.WriteLine("Run " . v_NP3Name . ": " . v_NP3TestDir . "\" . v_NP3Name . ".exe '" . v_NP3TestDir . "\" . v_NP3IniFile . ".")
@@ -104,10 +118,19 @@ CHECK_ABOUT_BOX() {
     ; Open Help -> About deterministically via WM_COMMAND (IDM_HELP_ABOUT = 43000)
     ; rather than the Shift+F1 hotkey: posting the command does not depend on input
     ; focus, which is unreliable on headless CI runners. Hotkey is the fallback.
-    WinActivate(mainWin)
-    PostMessage(0x0111, 43000, 0, , mainWin)   ; WM_COMMAND, IDM_HELP_ABOUT
+    ; Every call that can raise a TargetError is wrapped in try, so a transient
+    ; window mismatch fails the check cleanly instead of hanging the runner.
+    try {
+        if WinExist(mainWin) {
+            WinActivate(mainWin)
+            PostMessage(0x0111, 43000, 0, , mainWin)   ; WM_COMMAND, IDM_HELP_ABOUT
+        }
+    }
     if !WinWait(aboutWin, , 5) {
-        Send("+{F1}")                          ; fallback: Shift+F1 accelerator
+        try {
+            WinActivate("ahk_pid " . v_Notepad3_PID)
+            Send("+{F1}")                              ; fallback: Shift+F1 accelerator
+        }
         if !WinWait(aboutWin, , 5) {
             stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box is not displayed!")
             v_ExitCode := 4
@@ -115,15 +138,17 @@ CHECK_ABOUT_BOX() {
             ExitApp(v_ExitCode)
         }
     }
-    stdout.WriteLine("About Box Title is: " . WinGetTitle(aboutWin))
+    try stdout.WriteLine("About Box Title is: " . WinGetTitle(aboutWin))
 
     ; Close it via WM_COMMAND IDOK (1); WinClose / Enter as fallbacks.
-    PostMessage(0x0111, 1, 0, , aboutWin)      ; WM_COMMAND, IDOK
+    try PostMessage(0x0111, 1, 0, , aboutWin)          ; WM_COMMAND, IDOK
     if !WinWaitClose(aboutWin, , 2) {
-        WinClose(aboutWin)
+        try WinClose(aboutWin)
         if !WinWaitClose(aboutWin, , 2) {
-            WinActivate(aboutWin)
-            Send("{Enter}")
+            try {
+                WinActivate(aboutWin)
+                Send("{Enter}")
+            }
             if !WinWaitClose(aboutWin, , 2) {
                 stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box can not be closed!")
                 v_ExitCode := 5

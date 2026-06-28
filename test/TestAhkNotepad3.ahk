@@ -95,32 +95,41 @@ CHECK_WIN_TITLE() {
 ; =============================================================================
 CHECK_ABOUT_BOX() {
     global v_Notepad3_PID, v_NP3Name, stdout, v_ExitCode
-    ; check About DlgBox
-    WinActivate("ahk_pid " . v_Notepad3_PID)
-
-    ; Open Help -> About... via its keyboard shortcut (Shift+F1):
-    Send("+{F1}")
-
+    local mainWin  := "ahk_class Notepad3 ahk_pid " . v_Notepad3_PID
     ; Match the About box by its dialog class (#32770) owned by this process, NOT
     ; by caption text: the caption is now branded and localized ("About notepad3plus"
     ; / "Sobre o notepad3plus"), so a fixed "About Notepad3" string never matches.
     local aboutWin := "ahk_class #32770 ahk_pid " . v_Notepad3_PID
+
+    ; Open Help -> About deterministically via WM_COMMAND (IDM_HELP_ABOUT = 43000)
+    ; rather than the Shift+F1 hotkey: posting the command does not depend on input
+    ; focus, which is unreliable on headless CI runners. Hotkey is the fallback.
+    WinActivate(mainWin)
+    PostMessage(0x0111, 43000, 0, , mainWin)   ; WM_COMMAND, IDM_HELP_ABOUT
     if !WinWait(aboutWin, , 5) {
-        stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box is not displayed!")
-        v_ExitCode := 4
-        Cleanup()
-        ExitApp(v_ExitCode)
+        Send("+{F1}")                          ; fallback: Shift+F1 accelerator
+        if !WinWait(aboutWin, , 5) {
+            stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box is not displayed!")
+            v_ExitCode := 4
+            Cleanup()
+            ExitApp(v_ExitCode)
+        }
     }
     stdout.WriteLine("About Box Title is: " . WinGetTitle(aboutWin))
-    WinActivate(aboutWin)
-    Send("{Enter}")   ; press the default button (OK) - independent of its localized label
+
+    ; Close it via WM_COMMAND IDOK (1); WinClose / Enter as fallbacks.
+    PostMessage(0x0111, 1, 0, , aboutWin)      ; WM_COMMAND, IDOK
     if !WinWaitClose(aboutWin, , 2) {
         WinClose(aboutWin)
         if !WinWaitClose(aboutWin, , 2) {
-            stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box can not be closed!")
-            v_ExitCode := 5
-            Cleanup()
-            ExitApp(v_ExitCode)
+            WinActivate(aboutWin)
+            Send("{Enter}")
+            if !WinWaitClose(aboutWin, , 2) {
+                stdout.WriteLine("*** ERROR: " . v_NP3Name . "'s About Box can not be closed!")
+                v_ExitCode := 5
+                Cleanup()
+                ExitApp(v_ExitCode)
+            }
         }
     }
 }
